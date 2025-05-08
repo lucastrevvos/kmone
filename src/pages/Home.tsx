@@ -109,8 +109,8 @@ export function Home() {
                 type="tel"
                 placeholder="99 99999-9999"
                 pattern="[\d\s-]+"
-                minlength="10"
-                maxlength="16"
+                minLength={10}
+                maxLength={16}
                 required
                 title="Digite no mínimo 10 caracteres, usando números, espaços ou traços"
                 className="border p-3 rounded bg-gray-100"
