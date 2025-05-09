@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://kmone.trevvos.com.br/sitemap.xml

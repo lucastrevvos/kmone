@@ -12,7 +12,8 @@ export function Home() {
         <div>
           <h1 className="text-5xl font-extrabold leading-tight mb-6 text-center md:text-left">
             Controle total da sua{" "}
-            <span className="text-[var(--primary)]">jornada financeira</span>
+            <span className="text-[var(--primary)]">jornada financeira</span>{" "}
+            com o KM One para motoristas de aplicativo
           </h1>
 
           <ul className="space-y-6 text-lg">
@@ -50,8 +51,9 @@ export function Home() {
           Quer ser um dos primeiros a testar o KM One ?
         </h2>
         <p className="text-lg">
-          Junte-se à lista VIP e receba novidades exclusivas, acesso antecipado
-          e dicas para turbinar seus ganhos como motorista!
+          KM One é gratuito para os primeiros usuários! Junte-se à lista VIP e
+          receba novidades exclusivas, acesso antecipado e dicas para turbinar
+          seus ganhos como motorista!
         </p>
         {state.succeeded ? (
           <div className="text-center text-green-700 text-xl font-semibold mt-6">
@@ -135,7 +137,7 @@ export function Home() {
         <div>
           <img
             src={driverApp}
-            alt=""
+            alt="Motorista usando app KM One no celular"
             className="w-80  rounded-2xl border-b-blue-700-400 border-3"
           />
         </div>
