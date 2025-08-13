@@ -40,4 +40,4 @@ jobs:
         run: npm run build
 
       - name: Deploy with Serverless
-        run: npx serverless deploy
+        run: npx serverless@3 deploy

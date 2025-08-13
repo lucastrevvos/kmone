@@ -1,15 +1,16 @@
 service: kmone-backend
+frameworkVersion: "3"
 
 provider:
   name: aws
   runtime: nodejs20.x
   region: ${env:AWS_REGION, 'us-east-1'}
   stage: ${env:STAGE, 'staging'}
+  httpApi:
+    cors: true
   environment:
     NODE_ENV: "production"
     DATABASE_URL: ${env:DATABASE_URL}
-  httpApi:
-    cors: true
 
 functions:
   api:
