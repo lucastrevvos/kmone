@@ -6,27 +6,26 @@ on:
     paths:
       - "backend/**"
       - ".github/workflows/backend-deploy-lambda.yml"
+  workflow_dispatch:
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    permissions:
-      id-token: write # OIDC para assumir Role na AWS
-      contents: read
     defaults:
       run:
         working-directory: backend
     env:
-      AWS_REGION: ${{ secrets.AWS_REGION }}
-      DATABASE_URL: ${{ secrets.DATABASE_URL }} # Neon/Supabase
+      AWS_REGION: ${{ vars.AWS_REGION }} # <- variável, não secret
+      DATABASE_URL: ${{ secrets.DATABASE_URL }} # <- secret
       STAGE: staging
     steps:
       - uses: actions/checkout@v4
 
-      - name: Configure AWS Credentials (OIDC)
+      - name: Configure AWS Credentials (Access Keys)
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Setup Node
