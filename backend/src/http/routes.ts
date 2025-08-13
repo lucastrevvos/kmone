@@ -1,35 +1,61 @@
 import { Router } from "express";
-import { db } from "../storage.js";
+
+import {
+  addCorrida,
+  getConfig,
+  listCorridas,
+  listCorridasPorDia,
+  setConsumo,
+  setPrecoLitro,
+} from "../infra/repositories.js";
 
 const routes = Router();
 
 routes.get("/", (_req, res) => res.send("KM One API rodando 🚀"));
+
 routes.get("/health", (_req, res) => res.json({ ok: true }));
 
+routes.get("/config", async (_req, res) => res.json(await getConfig()));
+
 routes.put("/config/preco-litro", async (req, res) => {
-  try {
-    const precoLitro = await db.setPrecoLitro(req.body?.precoLitro);
-    res.json({ precoLitro });
-  } catch (error: any) {
-    if (error?.message === "precoLitro inválido") {
-      return res.status(400).json({ error: error.message });
-    }
-    console.error(error);
-    res.status(500).json({ error: "internal_error" });
-  }
+  const v = Number(req.body?.precoLitro);
+
+  if (!Number.isFinite(v) || v <= 0)
+    return res.status(400).json({ error: "precoLitro inválido" });
+
+  res.json({ precoLitro: await setPrecoLitro(+v.toFixed(2)) });
 });
 
-routes.get("/config/preco-litro", async (_req, res) => {
-  res.json({ precoLitro: db.getPrecoLitro() });
+routes.put("/config/consumo-km-por-litro", async (req, res) => {
+  const v = Number(req.body?.consumoKmPorLitro);
+
+  if (!Number.isFinite(v) || v <= 0)
+    return res.status(400).json({ error: "consumoKmPorLitro inválido" });
+
+  res.json({ consumoKmPorLitro: await setConsumo(+v.toFixed(2)) });
 });
 
 routes.post("/corridas", async (req, res) => {
   try {
-    const corrida = await db.addCorrida(req.body ?? {});
+    const valorRecebido = Number(req.body?.valorRecebido);
+    const kmRodado = Number(req.body?.kmRodado);
+
+    if (
+      !Number.isFinite(valorRecebido) ||
+      valorRecebido < 0 ||
+      !Number.isFinite(kmRodado) ||
+      kmRodado <= 0
+    ) {
+      return res
+        .status(400)
+        .json({ errors: ["valorRecebido/kmRodado inválidos"] });
+    }
+    const corrida = await addCorrida({ valorRecebido, kmRodado });
+
     res.status(201).json(corrida);
   } catch (error: any) {
-    if (error?.message === "BAD_REQUEST") {
-      return res.status(400).json({ errors: error.details ?? ["bad_request"] });
+    if (error?.message === "CONFIG_REQUIRED") {
+      return res.status(400).json({ errors: error.details });
     }
     console.error(error);
     res.status(500).json({ error: "internal_error" });
@@ -37,7 +63,23 @@ routes.post("/corridas", async (req, res) => {
 });
 
 routes.get("/corridas", async (_req, res) => {
-  res.json({ total: db.listCorridas().length, items: db.listCorridas() });
+  res.json({
+    total: (await listCorridas()).length,
+    items: await listCorridas(),
+  });
+});
+
+routes.get("/corridas/dia", async (req, res) => {
+  let dateStr = String(req.query.date ?? "").trim();
+  if (!dateStr) {
+    dateStr = new Date().toISOString().slice(0, 10);
+  }
+
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+    return res.status(400).json({ error: "date deve ser YYYY-MM-DD" });
+  }
+
+  return res.json(await listCorridasPorDia(dateStr));
 });
 
 export default routes;
