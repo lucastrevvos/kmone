@@ -21,7 +21,7 @@ routes.put("/config/preco-litro", async (req, res) => {
   const v = Number(req.body?.precoLitro);
 
   if (!Number.isFinite(v) || v <= 0)
-    return res.status(400).json({ error: "precoLitro inválido", v });
+    return res.status(400).json({ error: "precoLitro inválido", req });
 
   res.json({ precoLitro: await setPrecoLitro(+v.toFixed(2)) });
 });
