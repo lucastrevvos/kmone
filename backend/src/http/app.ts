@@ -1,7 +1,10 @@
 import express from "express";
 import routes from "./routes.js";
+import cors from "cors";
 
 const app = express();
+
+app.use(cors());
 
 // 1) tenta parsear JSON normal + application/*+json
 app.use(express.json());
