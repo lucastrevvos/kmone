@@ -1,5 +1,4 @@
 import { Router } from "express";
-
 import {
   addCorrida,
   getConfig,
@@ -11,6 +10,13 @@ import {
 
 const routes = Router();
 
+// Função utilitária para parse seguro de números
+function parseNumber(value: any): number {
+  if (typeof value === "string") value = value.replace(",", ".").trim();
+  const n = Number(value);
+  return Number.isFinite(n) ? n : NaN;
+}
+
 routes.get("/", (_req, res) => res.send("KM One API rodando 🚀"));
 
 routes.get("/health", (_req, res) => res.json({ ok: true }));
@@ -18,36 +24,29 @@ routes.get("/health", (_req, res) => res.json({ ok: true }));
 routes.get("/config", async (_req, res) => res.json(await getConfig()));
 
 routes.put("/config/preco-litro", async (req, res) => {
-  const v = Number(req.body?.precoLitro);
+  const v = parseNumber(req.body?.precoLitro);
 
-  if (!Number.isFinite(v) || v <= 0)
+  if (!Number.isFinite(v) || v <= 0) {
     return res.status(400).json({ error: "precoLitro inválido" });
+  }
 
   res.json({ precoLitro: await setPrecoLitro(+v.toFixed(2)) });
 });
 
-routes.post("/__debug/echo", (req, res) => {
-  res.json({
-    headers: req.headers,
-    body: req.body,
-    precoLitro: req.body?.precoLitro,
-    typeofPrecoLitro: typeof req.body?.precoLitro,
-  });
-});
-
 routes.put("/config/consumo-km-por-litro", async (req, res) => {
-  const v = Number(req.body?.consumoKmPorLitro);
+  const v = parseNumber(req.body?.consumoKmPorLitro);
 
-  if (!Number.isFinite(v) || v <= 0)
+  if (!Number.isFinite(v) || v <= 0) {
     return res.status(400).json({ error: "consumoKmPorLitro inválido" });
+  }
 
   res.json({ consumoKmPorLitro: await setConsumo(+v.toFixed(2)) });
 });
 
 routes.post("/corridas", async (req, res) => {
   try {
-    const valorRecebido = Number(req.body?.valorRecebido);
-    const kmRodado = Number(req.body?.kmRodado);
+    const valorRecebido = parseNumber(req.body?.valorRecebido);
+    const kmRodado = parseNumber(req.body?.kmRodado);
 
     if (
       !Number.isFinite(valorRecebido) ||
@@ -59,8 +58,8 @@ routes.post("/corridas", async (req, res) => {
         .status(400)
         .json({ errors: ["valorRecebido/kmRodado inválidos"] });
     }
-    const corrida = await addCorrida({ valorRecebido, kmRodado });
 
+    const corrida = await addCorrida({ valorRecebido, kmRodado });
     res.status(201).json(corrida);
   } catch (error: any) {
     if (error?.message === "CONFIG_REQUIRED") {
@@ -72,10 +71,8 @@ routes.post("/corridas", async (req, res) => {
 });
 
 routes.get("/corridas", async (_req, res) => {
-  res.json({
-    total: (await listCorridas()).length,
-    items: await listCorridas(),
-  });
+  const items = await listCorridas();
+  res.json({ total: items.length, items });
 });
 
 routes.get("/corridas/dia", async (req, res) => {
