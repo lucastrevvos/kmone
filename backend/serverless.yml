@@ -7,14 +7,19 @@ provider:
   region: sa-east-1
   stage: staging
   httpApi:
+    payload: "2.0"
     cors: true
+    # ❗ NÃO inclua */* aqui. Deixe só binários reais (imagens/bytes).
+    binaryMediaTypes:
+      - application/octet-stream
+      - image/*
   environment:
     NODE_ENV: "production"
     DATABASE_URL: ${env:DATABASE_URL, 'dummy'}
 
 functions:
   api:
-    handler: ./dist/handler.handler
+    handler: dist/handler.handler
     events:
       - httpApi: "*"
 
