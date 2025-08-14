@@ -1,17 +1,7 @@
 import express from "express";
 import routes from "./routes.js";
-import cors from "cors";
 
 const app = express();
-
-// CORS global
-app.use(
-  cors({
-    origin: "*",
-    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allowedHeaders: ["Content-Type", "Authorization"],
-  })
-);
 
 // Garantir parsing JSON apenas quando houver body
 app.use(
