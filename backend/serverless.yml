@@ -4,17 +4,17 @@ frameworkVersion: "3"
 provider:
   name: aws
   runtime: nodejs20.x
-  region: ${env:AWS_REGION, 'us-east-1'}
-  stage: ${env:STAGE, 'staging'}
+  region: sa-east-1
+  stage: staging
   httpApi:
     cors: true
   environment:
     NODE_ENV: "production"
-    DATABASE_URL: ${env:DATABASE_URL}
+    DATABASE_URL: ${env:DATABASE_URL, 'dummy'}
 
 functions:
   api:
-    handler: dist/handler.handler
+    handler: ./dist/handler.handler
     events:
       - httpApi: "*"
 
@@ -22,5 +22,6 @@ package:
   patterns:
     - dist/**
     - node_modules/**
+    - package.json
     - "!**/*.map"
     - "!src/**"
