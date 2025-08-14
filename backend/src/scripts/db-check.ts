@@ -1,4 +1,4 @@
-import { sql } from "../src/infra/db.js";
+import { sql } from "../infra/db.js";
 
 try {
   const result = await sql`SELECT 1 as ok`;
