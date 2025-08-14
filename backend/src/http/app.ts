@@ -4,6 +4,7 @@ import cors from "cors";
 
 const app = express();
 
+// CORS global
 app.use(
   cors({
     origin: "*",
@@ -12,28 +13,32 @@ app.use(
   })
 );
 
-// 1) tenta parsear JSON normal + application/*+json
-app.use(express.json({ type: ["application/json", "application/*+json"] }));
+// Garantir parsing JSON apenas quando houver body
+app.use(
+  express.json({
+    type: ["application/json", "application/*+json"],
+    limit: "1mb",
+  })
+);
 
-// 2) fallback: se veio string ou Buffer, tenta JSON.parse
+// Fallback: só tenta parsear se houver conteúdo bruto
 app.use((req, _res, next) => {
-  const b = req.body as any;
+  if (!req.body) return next();
 
-  if (Buffer.isBuffer(b)) {
-    try {
+  const b = req.body;
+  try {
+    if (Buffer.isBuffer(b)) {
       req.body = JSON.parse(b.toString("utf8"));
-    } catch {
-      /* ignore */
-    }
-  } else if (typeof b === "string") {
-    try {
+    } else if (typeof b === "string") {
       req.body = JSON.parse(b);
-    } catch {
-      /* ignore */
     }
+  } catch {
+    // ignora erro de JSON inválido
   }
+
   next();
 });
 
 app.use(routes);
+
 export default app;
