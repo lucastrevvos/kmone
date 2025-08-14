@@ -1,7 +1,16 @@
 import express from "express";
 import routes from "./routes.js";
+import cors from "cors";
 
 const app = express();
+
+app.use(
+  cors({
+    origin: "*",
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
 
 // 1) tenta parsear JSON normal + application/*+json
 app.use(express.json({ type: ["application/json", "application/*+json"] }));
