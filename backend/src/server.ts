@@ -1,4 +1,4 @@
-import app from "./http/app";
+import app from "./http/app.js";
 import { sql } from "./infra/db.js";
 
 const PORT = process.env.PORT ? Number(process.env.PORT) : 3333;
