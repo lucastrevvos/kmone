@@ -8,8 +8,18 @@ provider:
   stage: staging
   httpApi:
     payload: "2.0"
-    cors: true
-    # ❗ NÃO inclua */* aqui. Deixe só binários reais (imagens/bytes).
+    cors:
+      allowedOrigins:
+        - "*"
+      allowedMethods:
+        - GET
+        - POST
+        - PUT
+        - DELETE
+        - OPTIONS
+      allowedHeaders:
+        - Content-Type
+        - Authorization
     binaryMediaTypes:
       - application/octet-stream
       - image/*
