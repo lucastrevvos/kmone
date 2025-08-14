@@ -21,9 +21,18 @@ routes.put("/config/preco-litro", async (req, res) => {
   const v = Number(req.body?.precoLitro);
 
   if (!Number.isFinite(v) || v <= 0)
-    return res.status(400).json({ error: "precoLitro inválido", req: req });
+    return res.status(400).json({ error: "precoLitro inválido" });
 
   res.json({ precoLitro: await setPrecoLitro(+v.toFixed(2)) });
+});
+
+routes.post("/__debug/echo", (req, res) => {
+  res.json({
+    headers: req.headers,
+    body: req.body,
+    precoLitro: req.body?.precoLitro,
+    typeofPrecoLitro: typeof req.body?.precoLitro,
+  });
 });
 
 routes.put("/config/consumo-km-por-litro", async (req, res) => {
