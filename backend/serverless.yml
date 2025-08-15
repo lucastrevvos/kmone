@@ -20,7 +20,7 @@ provider:
       allowedHeaders:
         - Content-Type
         - Authorization
-      allowCredentials: false
+      maxAge: 86400
 
   environment:
     NODE_ENV: "production"
