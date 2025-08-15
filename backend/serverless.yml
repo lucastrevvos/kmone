@@ -8,11 +8,20 @@ provider:
   stage: staging
   httpApi:
     payload: "2.0"
-    cors: true
-    # ❗ NÃO inclua */* aqui. Deixe só binários reais (imagens/bytes).
-    binaryMediaTypes:
-      - application/octet-stream
-      - image/*
+    cors:
+      allowedOrigins:
+        - "*" # libera para qualquer origem
+      allowedMethods:
+        - GET
+        - POST
+        - PUT
+        - DELETE
+        - OPTIONS
+      allowedHeaders:
+        - Content-Type
+        - Authorization
+      maxAge: 86400
+
   environment:
     NODE_ENV: "production"
     DATABASE_URL: ${env:DATABASE_URL, 'dummy'}
