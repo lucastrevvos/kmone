@@ -12,7 +12,16 @@ app.use(
   })
 );
 
-app.use(express.json());
+app.options(
+  "*",
+  cors({
+    origin: "*",
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
+
+app.use(express.json({ type: ["application/json", "application/*+json"] }));
 
 // 2) fallback: se veio string ou Buffer, tenta JSON.parse
 app.use((req, _res, next) => {
