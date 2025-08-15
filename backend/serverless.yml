@@ -30,7 +30,9 @@ functions:
   api:
     handler: dist/handler.handler
     events:
-      - httpApi: "*"
+      - httpApi:
+          path: /{proxy+}
+          method: ANY
 
 package:
   patterns:
