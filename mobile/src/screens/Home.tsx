@@ -16,13 +16,13 @@ export default function Home() {
   if (loading) {
     return (
       <View className="flex-1 items-center justify-center bg-gray-100">
-        <Text className="text-lg">Carregando...</Text>
+        <Text className="text-lg bg-red-200">Carregando...</Text>
       </View>
     );
   }
 
   return (
-    <ScrollView className="flex-1 bg-white p-4">
+    <ScrollView className="flex-1 bg-red-500 p-4">
       {corridas.map((c, i) => (
         <View key={i}>
           <Text>Valor: R$ {c.valor_recebido}</Text>
