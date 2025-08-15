@@ -4,9 +4,14 @@ import cors from "cors";
 
 const app = express();
 
-app.use(cors());
+app.use(
+  cors({
+    origin: "*",
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
 
-// 1) tenta parsear JSON normal + application/*+json
 app.use(express.json());
 
 // 2) fallback: se veio string ou Buffer, tenta JSON.parse
