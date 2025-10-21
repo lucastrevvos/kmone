@@ -3,6 +3,14 @@
   "compilerOptions": {
     "strict": true,
     "jsxImportSource": "nativewind",
-    "types": ["nativewind/types", "react", "react-native"]
+    "types": ["nativewind/types", "react", "react-native"],
+    "baseUrl": ".",
+    "paths": {
+      "@app/*": ["src/app/*"],
+      "@ui/*": ["src/ui/*"],
+      "@core/*": ["src/core/*"],
+      "@state/*": ["src/state/*"],
+      "@utils/*": ["src/utils/*"]
+    }
   }
 }
