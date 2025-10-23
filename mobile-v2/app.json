@@ -12,19 +12,41 @@
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
+
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "O KM One usa sua localização para calcular os quilômetros rodados durante a corrida.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "O KM One pode continuar medindo os quilômetros mesmo quando o app estiver em segundo plano (opcional)."
+      }
     },
+
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "FOREGROUND_SERVICE"
+      ],
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
     },
+
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Permitir que o KM One acesse sua localização para calcular os quilômetros rodados.",
+          "locationWhenInUsePermission": "Permitir que o KM One use sua localização enquanto estiver aberto."
+        }
+      ]
+    ]
   }
 }
