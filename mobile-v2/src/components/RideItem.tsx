@@ -10,6 +10,7 @@ type Props = {
   ride: Ride;
   onEdit?: (r: Ride) => void;
   onChanged?: () => void; // chamado após excluir/editar
+  onDeleted?: (r: Ride) => void | Promise<void>; // 👈 add isso
 };
 
 export default function RideItem({ ride, onEdit, onChanged }: Props) {

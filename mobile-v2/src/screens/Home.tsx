@@ -6,19 +6,23 @@ import { useEffect, useState } from "react";
 import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import type { Ride } from "@core/domain/types";
-
 import RideItem from "src/components/RideItem";
 import RideEditModal from "src/components/RideEditModal";
+import UndoBanner from "src/components/UndoBanner"; // 👈 banner de desfazer
 
-const ACCENT = "#10B981"; // verde Trevvos
-const ACCENT_DARK = "#059669"; // versão pressionada
+const ACCENT = "#10B981";
 
 export default function Home() {
   // stores
-  const { rides, loadToday: loadRides, addRide } = useRideStore();
+  const {
+    rides,
+    loadToday: loadRides,
+    addRide,
+    removeRide, // 👈 vem do store
+    undoLastDelete, // 👈 vem do store
+  } = useRideStore();
   const { settings, load: loadSettings } = useSettingsStore();
   const { running, distanceMeters, startWithDraft, stop } = useTrackingStore();
 
@@ -26,13 +30,16 @@ export default function Home() {
   const [bruto, setBruto] = useState("");
   const [app, setApp] = useState<"Uber" | "99">("Uber");
   const [savedBanner, setSavedBanner] = useState<string | null>(null);
-  const [editing, setEditing] = useState<Ride | null>(null); // modal de edição
+  const [editing, setEditing] = useState<Ride | null>(null);
+  const [undoVisible, setUndoVisible] = useState(false);
+  // funciona em web e RN
+  const [undoTimer, setUndoTimer] = useState<ReturnType<
+    typeof setTimeout
+  > | null>(null);
 
   useEffect(() => {
-    (async () => {
-      loadRides();
-      loadSettings();
-    })();
+    loadRides();
+    loadSettings();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -77,6 +84,23 @@ export default function Home() {
     }
   }
 
+  // quando um item for apagado no RideItem
+  async function handleDeleted(r: Ride) {
+    await removeRide(r);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setUndoVisible(true);
+    if (undoTimer) clearTimeout(undoTimer);
+    const t = setTimeout(() => setUndoVisible(false), 4000);
+    setUndoTimer(t);
+  }
+
+  async function handleUndo() {
+    setUndoVisible(false);
+    if (undoTimer) clearTimeout(undoTimer);
+    await undoLastDelete();
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  }
+
   return (
     <ScrollView className="flex-1 bg-white">
       <View className="p-6 gap-6">
@@ -107,6 +131,11 @@ export default function Home() {
           </View>
         )}
 
+        {/* Banner desfazer */}
+        {undoVisible && (
+          <UndoBanner text="Corrida excluída." onAction={handleUndo} />
+        )}
+
         {/* Card principal */}
         <View className="rounded-3xl border border-slate-200 p-5 gap-5">
           {/* Valor da corrida */}
@@ -125,7 +154,7 @@ export default function Home() {
             </View>
           </View>
 
-          {/* App chips mais “vivos” */}
+          {/* App chips */}
           <View className="flex-row gap-3">
             {(["Uber", "99"] as const).map((opt) => {
               const active = app === opt;
@@ -157,7 +186,7 @@ export default function Home() {
             })}
           </View>
 
-          {/* Status do GPS com ícone */}
+          {/* Status do GPS */}
           <View className="rounded-2xl bg-slate-50 border border-slate-200 px-4 py-3 flex-row items-center gap-2">
             <Ionicons
               name={running ? "radio-outline" : "location-outline"}
@@ -176,7 +205,7 @@ export default function Home() {
             )}
           </View>
 
-          {/* Botão primário com accent */}
+          {/* Botão primário */}
           <Pressable
             onPress={onPrimaryButton}
             className="flex-row items-center justify-center rounded-2xl px-5 py-4 active:opacity-90"
@@ -189,7 +218,7 @@ export default function Home() {
           </Pressable>
         </View>
 
-        {/* Resumo do dia — card enxuto */}
+        {/* Resumo do dia */}
         <View className="rounded-3xl border border-slate-200 p-5">
           <Text className="text-slate-500">Resumo do dia</Text>
           <View className="mt-3 gap-2">
@@ -222,6 +251,7 @@ export default function Home() {
               ride={r}
               onEdit={setEditing}
               onChanged={loadRides}
+              onDeleted={handleDeleted} // 👈 importante
             />
           ))}
           {rides.length === 0 && (

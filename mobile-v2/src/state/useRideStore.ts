@@ -5,38 +5,32 @@ import { listRidesByDate } from "@core/usecases/listRidesByDate";
 import { todayLocalISO } from "@utils/format";
 import { create } from "zustand";
 
-type UndoState = { last?: { type: "ride"; snapshot: Ride } };
-
 type S = {
   dateISO: string;
   rides: Ride[];
   loading: boolean;
 
+  // NOVO
+  lastDeleted: Ride | null;
+  removeRide: (ride: Ride) => Promise<void>;
+  undoLastDelete: () => Promise<void>;
+
   loadToday(): Promise<void>;
   addRide(input: Omit<Ride, "id" | "dataISO">): Promise<void>;
-
-  // novos
-  updateRide(id: string, patch: Partial<Ride>): Promise<void>;
-  removeRide(id: string): Promise<void>;
-  undo(): Promise<void>;
-  _undoState: UndoState;
 };
 
 export const useRideStore = create<S>((set, get) => ({
   dateISO: todayLocalISO(),
   rides: [],
   loading: false,
-  _undoState: {},
+
+  lastDeleted: null,
 
   async loadToday() {
     set({ loading: true });
-    try {
-      const usecase = listRidesByDate(rideRepo);
-      const rides = await usecase(get().dateISO);
-      set({ rides });
-    } finally {
-      set({ loading: false });
-    }
+    const usecase = listRidesByDate(rideRepo);
+    const rides = await usecase(get().dateISO);
+    set({ rides, loading: false });
   },
 
   async addRide(input) {
@@ -46,77 +40,29 @@ export const useRideStore = create<S>((set, get) => ({
     await get().loadToday();
   },
 
-  // ====== novos métodos ======
-
-  async updateRide(id, patch) {
-    const { rides } = get();
-    const idx = rides.findIndex((r) => r.id === id);
-    if (idx === -1) return;
-
-    // preserva dataISO e id
-    const current = rides[idx];
-    const updated: Ride = {
-      ...current,
-      ...patch,
-      id: current.id,
-      dataISO: current.dataISO,
-      // se tiver campo updatedAt no domínio, pode adicionar:
-      // updatedAt: new Date().toISOString(),
-    };
-
-    // persiste
-    // troque por rideRepo.upsert/update se for o teu nome real
-    // @ts-expect-error - depende da tua implementação do repo
-    await rideRepo.save(updated);
-
-    // atualiza store em memória
-    const next = [...rides];
-    next[idx] = updated;
-    set({ rides: next });
+  // NOVO: remove + guarda p/ desfazer
+  async removeRide(ride) {
+    set({ loading: true });
+    try {
+      await rideRepo.remove(ride.id, ride.dataISO);
+      set({ lastDeleted: ride });
+      await get().loadToday();
+    } finally {
+      set({ loading: false });
+    }
   },
 
-  async removeRide(id) {
-    const { rides } = get();
-    const idx = rides.findIndex((r) => r.id === id);
-    if (idx === -1) return;
-
-    const snapshot = rides[idx];
-
-    // persiste remoção (troque o método se necessário)
-    // @ts-expect-error - depende da tua implementação do repo
-    await rideRepo.remove(id);
-
-    // atualiza memória + registra undo
-    set({
-      rides: rides.filter((r) => r.id !== id),
-      _undoState: { last: { type: "ride", snapshot } },
-    });
-
-    // limpa janela de undo após 7s se nada for desfeito
-    setTimeout(() => {
-      const last = get()._undoState.last;
-      if (last?.snapshot.id === snapshot.id) {
-        set({ _undoState: {} });
-      }
-    }, 7000);
-  },
-
-  async undo() {
-    const { _undoState, rides, dateISO } = get();
-    const last = _undoState.last;
+  // NOVO: desfazer
+  async undoLastDelete() {
+    const last = get().lastDeleted;
     if (!last) return;
-
-    // só restaura se pertencer ao dia atual da store
-    if (last.type === "ride" && last.snapshot.dataISO === dateISO) {
-      // @ts-expect-error - depende da tua implementação do repo
-      await rideRepo.save(last.snapshot);
-      set({
-        rides: [last.snapshot, ...rides],
-        _undoState: {},
-      });
-    } else {
-      // se for de outro dia, apenas limpa o estado de undo
-      set({ _undoState: {} });
+    set({ loading: true });
+    try {
+      await rideRepo.create(last);
+      set({ lastDeleted: null });
+      await get().loadToday();
+    } finally {
+      set({ loading: false });
     }
   },
 }));

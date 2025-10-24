@@ -1,30 +1,34 @@
-import { useEffect, useState } from "react";
-import {
-  View,
-  Text,
-  TextInput,
-  Pressable,
-  ScrollView,
-  RefreshControl,
-} from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { View, Text, TextInput, Pressable, ScrollView } from "react-native";
 import { useFuelStore } from "@state/useFuelStore";
-import { money } from "@utils/format";
-import { Ionicons } from "@expo/vector-icons";
+import type { Fuel } from "@core/infra/asyncStorageRepos";
+import { fuelRepo } from "@core/infra/asyncStorageRepos";
+import FuelItem from "src/components/FuelItem";
+import FuelEditModal from "src/components/FuelEditModal";
 
 const ACCENT = "#10B981"; // Trevvos
-const ACCENT_DARK = "#059669"; // ativo/pressed
+const ACCENT_DARK = "#059669";
 
 export default function Abastecer() {
   const { fuels, loadToday, addFuel, loading } = useFuelStore();
+
   const [valor, setValor] = useState("");
   const [litros, setLitros] = useState("");
   const [tipo, setTipo] = useState<
     "gasolina" | "etanol" | "diesel" | undefined
   >(undefined);
 
+  const [editing, setEditing] = useState<Fuel | null>(null);
+
+  // undo
+  const [lastDeleted, setLastDeleted] = useState<Fuel | null>(null);
+  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   useEffect(() => {
     loadToday();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => {
+      if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+    };
   }, []);
 
   async function salvar() {
@@ -37,22 +41,39 @@ export default function Abastecer() {
     setTipo(undefined);
   }
 
+  // chamado pelo FuelItem após excluir
+  async function handleDeleted(f: Fuel) {
+    setLastDeleted(f);
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+    undoTimerRef.current = setTimeout(() => setLastDeleted(null), 3500);
+  }
+
+  async function undoDelete() {
+    if (!lastDeleted) return;
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+    await fuelRepo.create(lastDeleted);
+    setLastDeleted(null);
+    await loadToday();
+  }
+
   return (
-    <ScrollView
-      className="flex-1 bg-white"
-      contentContainerClassName="p-5"
-      refreshControl={
-        <RefreshControl refreshing={loading} onRefresh={loadToday} />
-      }
-    >
-      <View className="gap-5">
-        <Text className="text-2xl font-bold">Abastecimento</Text>
+    <ScrollView className="flex-1 bg-white">
+      <View className="p-6 gap-6">
+        {/* Header */}
+        <View className="flex-row items-end justify-between">
+          <View>
+            <Text className="text-2xl font-bold">Abastecimento</Text>
+            <Text className="text-xs text-slate-500">
+              Registre custos do dia
+            </Text>
+          </View>
+        </View>
 
         {/* Card do formulário */}
-        <View className="rounded-3xl border border-slate-200 p-5 gap-4">
+        <View className="rounded-3xl border border-slate-200 p-5 gap-5">
           {/* Valor */}
           <View>
-            <Text className="mb-2 text-slate-600">Valor (R$)</Text>
+            <Text className="mb-2 text-slate-600">Valor</Text>
             <View className="flex-row items-center rounded-2xl border border-slate-300 px-4 py-3">
               <Text className="text-base text-slate-500 mr-2">R$</Text>
               <TextInput
@@ -61,23 +82,28 @@ export default function Abastecer() {
                 onChangeText={setValor}
                 placeholder="0,00"
                 className="flex-1 text-2xl font-semibold"
+                editable={!loading}
               />
             </View>
           </View>
 
-          {/* Litros */}
+          {/* Litros (opcional) */}
           <View>
             <Text className="mb-2 text-slate-600">Litros (opcional)</Text>
-            <TextInput
-              keyboardType="numeric"
-              value={litros}
-              onChangeText={setLitros}
-              placeholder="0,0"
-              className="rounded-2xl border border-slate-300 px-4 py-3 text-lg"
-            />
+            <View className="flex-row items-center rounded-2xl border border-slate-300 px-4 py-3">
+              <TextInput
+                keyboardType="numeric"
+                value={litros}
+                onChangeText={setLitros}
+                placeholder="0,0"
+                className="flex-1 text-xl"
+                editable={!loading}
+              />
+              <Text className="text-base text-slate-500 ml-2">L</Text>
+            </View>
           </View>
 
-          {/* Tipo (chips) */}
+          {/* Chips de tipo */}
           <View className="flex-row gap-3">
             {(["gasolina", "etanol", "diesel"] as const).map((opt) => {
               const active = tipo === opt;
@@ -85,7 +111,9 @@ export default function Abastecer() {
                 <Pressable
                   key={opt}
                   onPress={() => setTipo(opt)}
-                  className="px-4 py-3 rounded-2xl border"
+                  className={`px-4 py-3 rounded-2xl border ${
+                    active ? "" : "bg-white border-slate-300"
+                  }`}
                   style={{
                     backgroundColor: active ? ACCENT : "white",
                     borderColor: active ? ACCENT : "#CBD5E1",
@@ -100,7 +128,7 @@ export default function Abastecer() {
                       active ? "text-white" : "text-black"
                     }`}
                   >
-                    {opt.charAt(0).toUpperCase() + opt.slice(1)}
+                    {opt}
                   </Text>
                 </Pressable>
               );
@@ -112,58 +140,54 @@ export default function Abastecer() {
             onPress={salvar}
             disabled={loading}
             className="flex-row items-center justify-center rounded-2xl px-5 py-4 active:opacity-90"
-            style={{ backgroundColor: loading ? "#6EE7B7" : ACCENT }}
+            style={{ backgroundColor: loading ? ACCENT_DARK : ACCENT }}
           >
-            <Ionicons name="save-outline" size={20} color="#fff" />
-            <Text className="ml-2 text-white text-lg font-semibold">
+            <Text className="text-white text-lg font-semibold">
               {loading ? "Salvando..." : "Salvar"}
             </Text>
           </Pressable>
         </View>
 
         {/* Lista do dia */}
-        <View className="gap-2 mt-1">
+        <View className="gap-2">
           {fuels.map((f) => (
-            <View
+            <FuelItem
               key={f.id}
-              className="rounded-2xl border border-slate-200 p-4"
-              style={{ backgroundColor: "#FFFFFF" }}
-            >
-              <View className="flex-row items-center justify-between mb-1">
-                <View
-                  className="px-2 py-1 rounded-full"
-                  style={{
-                    backgroundColor: "#ECFDF5",
-                    borderColor: ACCENT,
-                    borderWidth: 1,
-                  }}
-                >
-                  <Text
-                    style={{ color: ACCENT, fontSize: 12, fontWeight: "600" }}
-                  >
-                    {f.tipo ? f.tipo : "Combustível"}
-                  </Text>
-                </View>
-                {f.litros ? (
-                  <Text className="text-slate-500 text-xs">{f.litros} L</Text>
-                ) : (
-                  <Text className="text-slate-500 text-xs">—</Text>
-                )}
-              </View>
-              <Text className="text-base font-semibold">{money(f.valor)}</Text>
-            </View>
+              fuel={f}
+              onEdit={setEditing}
+              onChanged={loadToday}
+              onDeleted={handleDeleted}
+            />
           ))}
-
           {fuels.length === 0 && (
-            <View className="items-center py-10">
-              <Ionicons name="apps-outline" size={28} color="#94A3B8" />
-              <Text className="text-slate-500 mt-2">
-                Sem abastecimentos hoje.
-              </Text>
-            </View>
+            <Text className="text-slate-500">Sem abastecimentos hoje.</Text>
           )}
         </View>
+
+        {/* Snackbar de undo */}
+        {lastDeleted && (
+          <View className="mt-2 flex-row items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3">
+            <Text>Abastecimento removido.</Text>
+            <Pressable
+              onPress={undoDelete}
+              className="px-3 py-1 rounded-lg border"
+              style={{ borderColor: ACCENT }}
+            >
+              <Text style={{ color: ACCENT, fontWeight: "600" }}>Desfazer</Text>
+            </Pressable>
+          </View>
+        )}
       </View>
+
+      {/* Modal */}
+      <FuelEditModal
+        visible={!!editing}
+        fuel={editing}
+        onClose={() => {
+          setEditing(null);
+          loadToday();
+        }}
+      />
     </ScrollView>
   );
 }
