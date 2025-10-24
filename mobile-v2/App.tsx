@@ -13,6 +13,9 @@ import Historico from "./src/screens/Historico";
 import Abastecer from "./src/screens/Abastecer";
 import Configuracoes from "./src/screens/Configuracoes";
 import { Ionicons } from "@expo/vector-icons";
+import { Text } from "react-native";
+
+const ACCENT = "#10B981"; // Trevvos
 
 const Tab = createBottomTabNavigator();
 const theme = {
@@ -28,32 +31,49 @@ function Tabs() {
       screenOptions={({ route }) => ({
         header: () => <DailyGoalHeader />,
         tabBarHideOnKeyboard: true,
-        tabBarActiveTintColor: "#000",
+        tabBarActiveTintColor: ACCENT,
         tabBarInactiveTintColor: "#6b7280",
-        // 👇 dá respiro real no Android com gesture bar
         tabBarStyle: {
           borderTopColor: "#e5e7eb",
-          height: 56 + insets.bottom, // + espaço seguro
+          height: 56 + insets.bottom,
           paddingBottom: Math.max(10, insets.bottom),
           paddingTop: 6,
+          backgroundColor: "white",
         },
-        tabBarIcon: ({ color, size }) => {
-          const map: Record<string, keyof typeof Ionicons.glyphMap> = {
-            Home: "speedometer",
-            Histórico: "calendar-outline",
-            Abastecer: "flame-outline",
-            Config: "settings-outline",
+        tabBarItemStyle: { paddingVertical: 3 }, // hit area melhor
+        tabBarLabel: ({ color, children, focused }) => (
+          <Text
+            style={{ color, fontSize: 12, fontWeight: focused ? "700" : "500" }}
+          >
+            {children}
+          </Text>
+        ),
+        tabBarIcon: ({ color, size, focused }) => {
+          const map: Record<
+            string,
+            {
+              filled: keyof typeof Ionicons.glyphMap;
+              outline: keyof typeof Ionicons.glyphMap;
+            }
+          > = {
+            Home: { filled: "speedometer", outline: "speedometer" },
+            Histórico: { filled: "calendar", outline: "calendar-outline" },
+            Abastecer: { filled: "flame", outline: "flame-outline" },
+            Config: { filled: "settings", outline: "settings-outline" },
           };
+          const entry = map[route.name] || {
+            filled: "ellipse",
+            outline: "ellipse-outline",
+          };
+          const name = focused ? entry.filled : entry.outline;
           return (
             <Ionicons
-              name={map[route.name] || "ellipse-outline"}
-              size={size}
+              name={name}
+              size={focused ? size + 2 : size}
               color={color}
             />
           );
         },
-        // deixa o label padrão (evita layout quebrado)
-        tabBarLabelStyle: { fontSize: 12 },
       })}
     >
       <Tab.Screen name="Home" component={Home} />

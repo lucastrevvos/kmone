@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -6,30 +6,48 @@ import {
   ScrollView,
   RefreshControl,
 } from "react-native";
-import { listRidesByDate } from "@core/usecases/listRidesByDate";
-import { AsyncRideRepo } from "@core/infra/asyncStorageRepos";
-import { money } from "@utils/format";
 import { Ionicons } from "@expo/vector-icons";
 
-const repo = AsyncRideRepo();
-const ACCENT = "#10B981"; // Trevvos
-const ACCENT_DARK = "#059669"; // pressionado
+import { useRideStore } from "@state/useRideStore";
+import { listRidesByDate } from "@core/usecases/listRidesByDate";
+import { rideRepo } from "@core/infra/asyncStorageRepos";
+import { money, todayLocalISO } from "@utils/format";
+import type { Ride } from "@core/domain/types";
 
-function addDays(dateISO: string, delta: number) {
-  const d = new Date(dateISO + "T00:00:00");
-  d.setDate(d.getDate() + delta);
-  return d.toISOString().slice(0, 10);
+import RideItem from "src/components/RideItem";
+import RideEditModal from "src/components/RideEditModal";
+
+const ACCENT = "#10B981"; // Trevvos
+
+function fmtLocalISO(d: Date) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+// soma dias no horário local (meio-dia evita buraco/overlap de DST)
+function addDaysLocal(dateISO: string, delta: number) {
+  const [y, m, d] = dateISO.split("-").map(Number);
+  const base = new Date(y, m - 1, d, 12, 0, 0, 0);
+  base.setDate(base.getDate() + delta);
+  return fmtLocalISO(base);
 }
 
 export default function Historico() {
-  const [dateISO, setDateISO] = useState(new Date().toISOString().slice(0, 10));
-  const [rides, setRides] = useState<any[]>([]);
+  // usa o mesmo "hoje" da store (fonte da verdade)
+  const { dateISO: storeToday } = useRideStore();
+  const initial = useMemo(() => storeToday || todayLocalISO(), [storeToday]);
+
+  const [dateISO, setDateISO] = useState(initial);
+  const [rides, setRides] = useState<Ride[]>([]);
   const [loading, setLoading] = useState(false);
+  const [editing, setEditing] = useState<Ride | null>(null);
 
   async function load() {
     setLoading(true);
     try {
-      const uc = listRidesByDate(repo);
+      const uc = listRidesByDate(rideRepo);
       const list = await uc(dateISO);
       setRides(list);
     } finally {
@@ -38,14 +56,17 @@ export default function Historico() {
   }
 
   useEffect(() => {
+    setDateISO(initial); // se o storeToday mudar
+  }, [initial]);
+
+  useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateISO]);
 
   const total = rides.reduce((s, r) => s + r.receitaBruta, 0);
   const km = rides.reduce((s, r) => s + r.kmRodado, 0);
-
-  const isToday = dateISO === new Date().toISOString().slice(0, 10);
+  const isToday = dateISO === initial;
 
   return (
     <ScrollView
@@ -56,10 +77,10 @@ export default function Historico() {
       <View className="gap-4">
         <Text className="text-2xl font-bold">Histórico</Text>
 
-        {/* Navegação por data */}
+        {/* Navegação por data (mesmo visual que antes) */}
         <View className="flex-row items-center justify-between">
           <Pressable
-            onPress={() => setDateISO(addDays(dateISO, -1))}
+            onPress={() => setDateISO(addDaysLocal(dateISO, -1))}
             className="rounded-full"
             style={{
               backgroundColor: ACCENT,
@@ -75,9 +96,7 @@ export default function Historico() {
             <Text className="font-semibold">{dateISO}</Text>
             {!isToday && (
               <Pressable
-                onPress={() =>
-                  setDateISO(new Date().toISOString().slice(0, 10))
-                }
+                onPress={() => setDateISO(initial)}
                 className="mt-1 rounded-full border px-3 py-1"
                 style={{ borderColor: ACCENT }}
               >
@@ -91,7 +110,7 @@ export default function Historico() {
           </View>
 
           <Pressable
-            onPress={() => setDateISO(addDays(dateISO, +1))}
+            onPress={() => setDateISO(addDaysLocal(dateISO, +1))}
             className="rounded-full"
             style={{
               backgroundColor: ACCENT,
@@ -104,7 +123,7 @@ export default function Historico() {
           </Pressable>
         </View>
 
-        {/* Resumo do dia */}
+        {/* Resumo do dia (cards e fontes como antes) */}
         <View className="rounded-3xl border border-slate-200 p-4">
           <Text className="text-slate-500 mb-2">Resumo</Text>
           <View className="gap-2">
@@ -113,39 +132,16 @@ export default function Historico() {
           </View>
         </View>
 
-        {/* Lista de corridas */}
+        {/* Lista de corridas com RideItem + ações */}
+        {/* Lista de corridas (com ações) */}
         <View className="gap-2">
           {rides.map((r) => (
-            <View
+            <RideItem
               key={r.id}
-              className="rounded-2xl border border-slate-200 p-3"
-              style={{ backgroundColor: "#FFFFFF" }}
-            >
-              <View className="flex-row items-center justify-between mb-1">
-                <View
-                  className="px-2 py-1 rounded-full"
-                  style={{
-                    backgroundColor: "#ECFDF5",
-                    borderColor: ACCENT,
-                    borderWidth: 1,
-                  }}
-                >
-                  <Text
-                    style={{ color: ACCENT, fontSize: 12, fontWeight: "600" }}
-                  >
-                    {r.app}
-                  </Text>
-                </View>
-                <Text className="text-slate-500 text-xs">{dateISO}</Text>
-              </View>
-              <Text className="text-base">
-                <Text className="font-semibold">
-                  {r.kmRodado.toFixed(2)} km
-                </Text>
-                <Text> • </Text>
-                <Text className="font-semibold">{money(r.receitaBruta)}</Text>
-              </Text>
-            </View>
+              ride={r}
+              onEdit={setEditing}
+              onChanged={load} // 👈 recarrega ao excluir
+            />
           ))}
 
           {!loading && rides.length === 0 && (
@@ -158,11 +154,20 @@ export default function Historico() {
           )}
         </View>
       </View>
+
+      {/* Modal de edição (salva/exclui e recarrega) */}
+      <RideEditModal
+        visible={!!editing}
+        ride={editing}
+        onClose={() => {
+          setEditing(null);
+          load();
+        }}
+      />
     </ScrollView>
   );
 }
 
-/** Linha de resumo com leve destaque no valor */
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <View className="flex-row justify-between">

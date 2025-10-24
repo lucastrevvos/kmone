@@ -1,5 +1,5 @@
 import { FuelToUp } from "@core/domain/types";
-import { AsyncFuelRepo } from "@core/infra/asyncStorageRepos";
+import { fuelRepo } from "@core/infra/asyncStorageRepos";
 import { createFuelTopUp } from "@core/usecases/createFuelToUp";
 import { listFuelByDate } from "@core/usecases/listFuelByDate";
 import { todayLocalISO } from "@utils/format";
@@ -13,8 +13,6 @@ type S = {
   addFuel(input: Omit<FuelToUp, "id" | "dataISO">): Promise<void>;
 };
 
-const repo = AsyncFuelRepo();
-
 export const useFuelStore = create<S>((set, get) => ({
   dateISO: todayLocalISO(),
   fuels: [],
@@ -22,9 +20,8 @@ export const useFuelStore = create<S>((set, get) => ({
 
   async loadToday() {
     set({ loading: true });
-
     try {
-      const uc = listFuelByDate(repo);
+      const uc = listFuelByDate(fuelRepo);
       const fuels = await uc(get().dateISO);
       set({ fuels });
     } finally {
@@ -34,11 +31,10 @@ export const useFuelStore = create<S>((set, get) => ({
 
   async addFuel(input) {
     set({ loading: true });
-
     try {
       const id = Math.random().toString(36).slice(2);
       const dataISO = get().dateISO;
-      await createFuelTopUp(repo)({ id, dataISO, ...input });
+      await createFuelTopUp(fuelRepo)({ id, dataISO, ...input });
       await get().loadToday();
     } finally {
       set({ loading: false });

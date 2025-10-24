@@ -1,18 +1,17 @@
 import { useRideStore } from "@state/useRideStore";
 import { useSettingsStore } from "@state/useSettingsStore";
 import { useTrackingStore } from "@state/useTrackingStore";
-import { money, todayLocalISO } from "@utils/format";
+import { money } from "@utils/format";
 import { useEffect, useState } from "react";
-import {
-  Pressable,
-  ScrollView,
-  Text,
-  TextInput,
-  View,
-  Platform,
-} from "react-native";
+import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
+import type { Ride } from "@core/domain/types";
+
+import RideItem from "src/components/RideItem";
+import RideEditModal from "src/components/RideEditModal";
 
 const ACCENT = "#10B981"; // verde Trevvos
 const ACCENT_DARK = "#059669"; // versão pressionada
@@ -27,10 +26,13 @@ export default function Home() {
   const [bruto, setBruto] = useState("");
   const [app, setApp] = useState<"Uber" | "99">("Uber");
   const [savedBanner, setSavedBanner] = useState<string | null>(null);
+  const [editing, setEditing] = useState<Ride | null>(null); // modal de edição
 
   useEffect(() => {
-    loadRides();
-    loadSettings();
+    (async () => {
+      loadRides();
+      loadSettings();
+    })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -211,7 +213,32 @@ export default function Home() {
             </View>
           </View>
         </View>
+
+        {/* Corridas de hoje */}
+        <View className="gap-2">
+          {rides.map((r) => (
+            <RideItem
+              key={r.id}
+              ride={r}
+              onEdit={setEditing}
+              onChanged={loadRides}
+            />
+          ))}
+          {rides.length === 0 && (
+            <Text className="text-slate-500">Sem corridas hoje.</Text>
+          )}
+        </View>
       </View>
+
+      {/* Modal de edição */}
+      <RideEditModal
+        visible={!!editing}
+        ride={editing}
+        onClose={() => {
+          setEditing(null);
+          loadRides();
+        }}
+      />
     </ScrollView>
   );
 }
