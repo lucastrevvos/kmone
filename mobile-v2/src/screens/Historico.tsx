@@ -1,23 +1,22 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   View,
   Text,
   Pressable,
   ScrollView,
   RefreshControl,
+  Alert,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
-
-import { useRideStore } from "@state/useRideStore";
 import { listRidesByDate } from "@core/usecases/listRidesByDate";
 import { rideRepo } from "@core/infra/asyncStorageRepos";
 import { money, todayLocalISO } from "@utils/format";
+import { Ionicons } from "@expo/vector-icons";
 import type { Ride } from "@core/domain/types";
-
-import RideItem from "src/components/RideItem";
 import RideEditModal from "src/components/RideEditModal";
+import RideItem from "src/components/RideItem";
+import { exportDayCsv } from "src/features/export/exportDayCsv";
 
-const ACCENT = "#10B981"; // Trevvos
+const ACCENT = "#10B981";
 
 function fmtLocalISO(d: Date) {
   const y = d.getFullYear();
@@ -25,8 +24,6 @@ function fmtLocalISO(d: Date) {
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
 }
-
-// soma dias no horário local (meio-dia evita buraco/overlap de DST)
 function addDaysLocal(dateISO: string, delta: number) {
   const [y, m, d] = dateISO.split("-").map(Number);
   const base = new Date(y, m - 1, d, 12, 0, 0, 0);
@@ -35,11 +32,7 @@ function addDaysLocal(dateISO: string, delta: number) {
 }
 
 export default function Historico() {
-  // usa o mesmo "hoje" da store (fonte da verdade)
-  const { dateISO: storeToday } = useRideStore();
-  const initial = useMemo(() => storeToday || todayLocalISO(), [storeToday]);
-
-  const [dateISO, setDateISO] = useState(initial);
+  const [dateISO, setDateISO] = useState(todayLocalISO());
   const [rides, setRides] = useState<Ride[]>([]);
   const [loading, setLoading] = useState(false);
   const [editing, setEditing] = useState<Ride | null>(null);
@@ -54,19 +47,26 @@ export default function Historico() {
       setLoading(false);
     }
   }
-
-  useEffect(() => {
-    setDateISO(initial); // se o storeToday mudar
-  }, [initial]);
-
   useEffect(() => {
     load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateISO]);
 
   const total = rides.reduce((s, r) => s + r.receitaBruta, 0);
   const km = rides.reduce((s, r) => s + r.kmRodado, 0);
-  const isToday = dateISO === initial;
+  const isToday = dateISO === todayLocalISO();
+
+  async function onExport() {
+    if (rides.length === 0) {
+      Alert.alert("Nada para exportar", "Não há corridas neste dia.");
+      return;
+    }
+    try {
+      await exportDayCsv(dateISO, rides);
+    } catch (e) {
+      console.error("export csv", e);
+      Alert.alert("Erro", "Não foi possível exportar o CSV.");
+    }
+  }
 
   return (
     <ScrollView
@@ -75,9 +75,19 @@ export default function Historico() {
       contentContainerClassName="p-5"
     >
       <View className="gap-4">
-        <Text className="text-2xl font-bold">Histórico</Text>
+        <View className="flex-row items-center justify-between">
+          <Text className="text-2xl font-bold">Histórico</Text>
+          <Pressable
+            onPress={onExport}
+            className="flex-row items-center gap-1 rounded-full px-3 py-2"
+            style={{ backgroundColor: ACCENT }}
+          >
+            <Ionicons name="share-outline" size={16} color="#fff" />
+            <Text className="text-white font-semibold">Exportar CSV</Text>
+          </Pressable>
+        </View>
 
-        {/* Navegação por data (mesmo visual que antes) */}
+        {/* Navegação por data */}
         <View className="flex-row items-center justify-between">
           <Pressable
             onPress={() => setDateISO(addDaysLocal(dateISO, -1))}
@@ -96,7 +106,7 @@ export default function Historico() {
             <Text className="font-semibold">{dateISO}</Text>
             {!isToday && (
               <Pressable
-                onPress={() => setDateISO(initial)}
+                onPress={() => setDateISO(todayLocalISO())}
                 className="mt-1 rounded-full border px-3 py-1"
                 style={{ borderColor: ACCENT }}
               >
@@ -123,7 +133,7 @@ export default function Historico() {
           </Pressable>
         </View>
 
-        {/* Resumo do dia (cards e fontes como antes) */}
+        {/* Resumo */}
         <View className="rounded-3xl border border-slate-200 p-4">
           <Text className="text-slate-500 mb-2">Resumo</Text>
           <View className="gap-2">
@@ -132,18 +142,16 @@ export default function Historico() {
           </View>
         </View>
 
-        {/* Lista de corridas com RideItem + ações */}
-        {/* Lista de corridas (com ações) */}
+        {/* Lista */}
         <View className="gap-2">
           {rides.map((r) => (
             <RideItem
               key={r.id}
               ride={r}
               onEdit={setEditing}
-              onChanged={load} // 👈 recarrega ao excluir
+              onChanged={load}
             />
           ))}
-
           {!loading && rides.length === 0 && (
             <View className="items-center py-10">
               <Ionicons name="trail-sign-outline" size={28} color="#94A3B8" />
@@ -155,7 +163,6 @@ export default function Historico() {
         </View>
       </View>
 
-      {/* Modal de edição (salva/exclui e recarrega) */}
       <RideEditModal
         visible={!!editing}
         ride={editing}
