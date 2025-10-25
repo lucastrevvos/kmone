@@ -12,7 +12,6 @@
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
-
     "ios": {
       "supportsTablet": true,
       "infoPlist": {
@@ -20,7 +19,6 @@
         "NSLocationAlwaysAndWhenInUseUsageDescription": "O KM One pode continuar medindo os quilômetros mesmo quando o app estiver em segundo plano (opcional)."
       }
     },
-
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
@@ -32,21 +30,38 @@
         "FOREGROUND_SERVICE"
       ],
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.lucastrevvos.mobilev2"
     },
-
     "web": {
       "favicon": "./assets/favicon.png"
     },
-
     "plugins": [
+      "./plugins/fix-mainapplication",
       [
         "expo-location",
         {
           "locationAlwaysAndWhenInUsePermission": "Permitir que o KM One acesse sua localização para calcular os quilômetros rodados.",
           "locationWhenInUsePermission": "Permitir que o KM One use sua localização enquanto estiver aberto."
         }
-      ]
-    ]
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "kotlinVersion": "2.0.21",
+            "gradleProperties": {
+              "expo.kspVersion": "2.0.21-1.0.28"
+            }
+          }
+        }
+      ],
+      "expo-font"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "50d9be07-de3e-4e39-ba97-a77a5dd3b090"
+      }
+    }
   }
 }
