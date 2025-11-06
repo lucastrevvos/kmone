@@ -27,24 +27,18 @@
       "permissions": [
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
-        "FOREGROUND_SERVICE"
+        "FOREGROUND_SERVICE",
+        "ACCESS_BACKGROUND_LOCATION"
       ],
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
-      "package": "com.lucastrevvos.mobilev2"
+      "package": "com.lucastrevvos.mobilev2",
+      "versionCode": 1
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "./plugins/fix-mainapplication",
-      [
-        "expo-location",
-        {
-          "locationAlwaysAndWhenInUsePermission": "Permitir que o KM One acesse sua localização para calcular os quilômetros rodados.",
-          "locationWhenInUsePermission": "Permitir que o KM One use sua localização enquanto estiver aberto."
-        }
-      ],
       [
         "expo-build-properties",
         {
@@ -52,11 +46,13 @@
             "kotlinVersion": "2.0.21",
             "gradleProperties": {
               "expo.kspVersion": "2.0.21-1.0.28"
+            },
+            "ndk": {
+              "abiFilters": ["arm64-v8a", "armeabi-v7a", "x86_64", "x86"]
             }
           }
         }
-      ],
-      "expo-font"
+      ]
     ],
     "extra": {
       "eas": {
