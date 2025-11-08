@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import { ExpoGpsPort } from "@core/infra/expoGps";
+import { ExpoGpsPort, setBackgroundPointHandler } from "@core/infra/expoGps";
 import type { AppFonte } from "@core/domain/types";
 
 function haversine(
@@ -20,12 +20,14 @@ function haversine(
 
 type DraftRide = { receitaBruta: number; app: AppFonte };
 
+type TrackPoint = { lat: number; lon: number; t: number; accuracy?: number };
+
 type TrackState = {
   running: boolean;
   distanceMeters: number;
-  lastPoint?: { lat: number; lon: number; t: number };
-  points: Array<{ lat: number; lon: number; t: number }>;
-  draft?: DraftRide; // 👈 guarda valor + app enquanto trackeia
+  lastPoint?: TrackPoint;
+  points: TrackPoint[];
+  draft?: DraftRide;
 
   startWithDraft(d: DraftRide): Promise<void>;
   stop(): Promise<{ distanceMeters: number; draft?: DraftRide }>;
@@ -39,9 +41,10 @@ export const useTrackingStore = create<TrackState>((set, get) => ({
   points: [],
 
   async startWithDraft(draft) {
-    const ok = await gps.ensurePermissions();
-    if (ok !== "granted") throw new Error("Permissão de localização negada");
+    const perm = await gps.ensurePermissions();
+    if (perm !== "granted") throw new Error("Permissão de localização negada");
 
+    // zera estado
     set({
       running: true,
       distanceMeters: 0,
@@ -50,29 +53,53 @@ export const useTrackingStore = create<TrackState>((set, get) => ({
       draft,
     });
 
-    await gps.startForeground((p) => {
+    // Atualizador comum (usa a mesma lógica para FG/BG)
+    const applyPoint = (p: TrackPoint) => {
       const s = get();
+
+      // filtra leituras ruins
       if (p.accuracy && p.accuracy > 50) return;
+
+      // primeiro ponto
       if (!s.lastPoint) {
         set({ lastPoint: p, points: [...s.points, p] });
         return;
       }
 
       const d = haversine(s.lastPoint, p);
-      if (d > 0 && d < 200) {
-        set({
-          distanceMeters: s.distanceMeters + d,
-          lastPoint: p,
-          points: [...s.points, p],
-        });
-      } else {
+
+      // rejeita spikes bizarros
+      if (d <= 0 || d >= 200) {
         set({ lastPoint: p, points: [...s.points, p] });
+        return;
       }
+
+      set({
+        distanceMeters: s.distanceMeters + d,
+        lastPoint: p,
+        points: [...s.points, p],
+      });
+    };
+
+    // Foreground watcher
+    await gps.startForeground((p) => applyPoint(p));
+
+    // Background: define handler global para o Task chamar
+    setBackgroundPointHandler((p) => {
+      // só processa se ainda estiver rodando
+      if (!get().running) return;
+      applyPoint(p);
     });
+
+    // Sobe o serviço em 1º plano (Android) e ativa updates de BG
+    await gps.startBackground();
   },
 
   async stop() {
     await gps.stop();
+    // remove o handler do background
+    setBackgroundPointHandler(null);
+
     const { distanceMeters, draft } = get();
     set({ running: false, draft: undefined });
     return { distanceMeters, draft };

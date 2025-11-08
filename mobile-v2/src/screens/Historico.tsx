@@ -8,7 +8,7 @@ import {
   Alert,
 } from "react-native";
 import { listRidesByDate } from "@core/usecases/listRidesByDate";
-import { rideRepo } from "@core/infra/asyncStorageRepos";
+import { rideRepo, fuelRepo } from "@core/infra/asyncStorageRepos";
 import { money, todayLocalISO } from "@utils/format";
 import { Ionicons } from "@expo/vector-icons";
 import type { Ride } from "@core/domain/types";
@@ -16,8 +16,14 @@ import RideEditModal from "src/components/RideEditModal";
 import RideItem from "src/components/RideItem";
 import { exportDayCsv } from "src/features/export/exportDayCsv";
 
+// para export por intervalo (sem criar arquivo novo)
+import * as FileSystem from "expo-file-system/legacy";
+import * as Sharing from "expo-sharing";
+import { ridesToCSV } from "@utils/csv";
+
 const ACCENT = "#10B981";
 
+/** Helpers locais de data (ISO local YYYY-MM-DD) */
 function fmtLocalISO(d: Date) {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -30,6 +36,65 @@ function addDaysLocal(dateISO: string, delta: number) {
   base.setDate(base.getDate() + delta);
   return fmtLocalISO(base);
 }
+function weekRangeMonday(iso: string) {
+  const [y, m, d] = iso.split("-").map(Number);
+  const base = new Date(y, (m || 1) - 1, d || 1, 12);
+  // getDay(): 0=Dom … 6=Sáb ; vamos usar segunda como início
+  const wd = (base.getDay() + 6) % 7; // 0 = segunda
+  const start = addDaysLocal(fmtLocalISO(base), -wd);
+  const end = addDaysLocal(start, 6);
+  return { start, end };
+}
+function monthRange(iso: string) {
+  const [y, m] = iso.split("-").map(Number);
+  const first = new Date(y, (m || 1) - 1, 1, 12);
+  const last = new Date(y, m || 1, 0, 12);
+  return { start: fmtLocalISO(first), end: fmtLocalISO(last) };
+}
+function* eachDay(startISO: string, endISO: string) {
+  let cur = startISO;
+  while (cur <= endISO) {
+    yield cur;
+    cur = addDaysLocal(cur, 1);
+  }
+}
+
+/** Export CSV por intervalo (inline) */
+async function exportRangeCsv(label: string, rides: Ride[]) {
+  const csv = ridesToCSV(rides);
+  const safe = label.replace(/[^\w-]+/g, "_");
+  const filename = `kmone-rides-${safe}.csv`;
+  const dir = FileSystem.documentDirectory ?? FileSystem.cacheDirectory ?? "";
+  const uri = `${dir}${filename}`;
+
+  await FileSystem.writeAsStringAsync(uri, csv, {
+    encoding: FileSystem.EncodingType.UTF8,
+  });
+
+  if (await Sharing.isAvailableAsync()) {
+    await Sharing.shareAsync(uri, {
+      dialogTitle: `Exportar corridas • ${label}`,
+      UTI: "public.comma-separated-values-text",
+      mimeType: "text/csv",
+    });
+  } else {
+    console.log("CSV salvo em:", uri);
+  }
+  return uri;
+}
+
+/** Busca corridas num intervalo sem mudar a infra existente */
+async function listRidesRange(
+  startISO: string,
+  endISO: string
+): Promise<Ride[]> {
+  const all: Ride[] = [];
+  for (const day of eachDay(startISO, endISO)) {
+    const list = await rideRepo.listByDate(day);
+    if (list?.length) all.push(...list);
+  }
+  return all;
+}
 
 export default function Historico() {
   const [dateISO, setDateISO] = useState(todayLocalISO());
@@ -37,12 +102,18 @@ export default function Historico() {
   const [loading, setLoading] = useState(false);
   const [editing, setEditing] = useState<Ride | null>(null);
 
+  // novo: combustível do dia
+  const [fuelDay, setFuelDay] = useState(0);
+
   async function load() {
     setLoading(true);
     try {
       const uc = listRidesByDate(rideRepo);
       const list = await uc(dateISO);
       setRides(list);
+
+      const fuels = await fuelRepo.listByDate(dateISO);
+      setFuelDay(fuels.reduce((s, f) => s + f.valor, 0));
     } finally {
       setLoading(false);
     }
@@ -53,6 +124,7 @@ export default function Historico() {
 
   const total = rides.reduce((s, r) => s + r.receitaBruta, 0);
   const km = rides.reduce((s, r) => s + r.kmRodado, 0);
+  const liquido = total - fuelDay;
   const isToday = dateISO === todayLocalISO();
 
   async function onExport() {
@@ -68,6 +140,26 @@ export default function Historico() {
     }
   }
 
+  async function onExportWeek() {
+    const { start, end } = weekRangeMonday(dateISO);
+    const data = await listRidesRange(start, end);
+    if (!data.length) {
+      Alert.alert("Nada para exportar", "Não há corridas nesta semana.");
+      return;
+    }
+    await exportRangeCsv(`semana-${start}_a_${end}`, data);
+  }
+
+  async function onExportMonth() {
+    const { start, end } = monthRange(dateISO);
+    const data = await listRidesRange(start, end);
+    if (!data.length) {
+      Alert.alert("Nada para exportar", "Não há corridas neste mês.");
+      return;
+    }
+    await exportRangeCsv(`mes-${start.slice(0, 7)}`, data); // YYYY-MM
+  }
+
   return (
     <ScrollView
       className="flex-1 bg-white"
@@ -77,14 +169,35 @@ export default function Historico() {
       <View className="gap-4">
         <View className="flex-row items-center justify-between">
           <Text className="text-2xl font-bold">Histórico</Text>
-          <Pressable
-            onPress={onExport}
-            className="flex-row items-center gap-1 rounded-full px-3 py-2"
-            style={{ backgroundColor: ACCENT }}
-          >
-            <Ionicons name="share-outline" size={16} color="#fff" />
-            <Text className="text-white font-semibold">Exportar CSV</Text>
-          </Pressable>
+
+          <View className="flex-row gap-2">
+            <Pressable
+              onPress={onExportWeek}
+              className="flex-row items-center gap-1 rounded-full px-3 py-2"
+              style={{ backgroundColor: "#0EA5E9" }}
+            >
+              <Ionicons name="share-outline" size={16} color="#fff" />
+              <Text className="text-white font-semibold">Semana</Text>
+            </Pressable>
+
+            <Pressable
+              onPress={onExportMonth}
+              className="flex-row items-center gap-1 rounded-full px-3 py-2"
+              style={{ backgroundColor: "#10B981" }}
+            >
+              <Ionicons name="share-outline" size={16} color="#fff" />
+              <Text className="text-white font-semibold">Mês</Text>
+            </Pressable>
+
+            <Pressable
+              onPress={onExport}
+              className="flex-row items-center gap-1 rounded-full px-3 py-2"
+              style={{ backgroundColor: ACCENT }}
+            >
+              <Ionicons name="share-outline" size={16} color="#fff" />
+              <Text className="text-white font-semibold">Dia</Text>
+            </Pressable>
+          </View>
         </View>
 
         {/* Navegação por data */}
@@ -139,6 +252,8 @@ export default function Historico() {
           <View className="gap-2">
             <Row label="Bruto" value={money(total)} />
             <Row label="Km" value={`${km.toFixed(2)} km`} />
+            <Row label="Combustível" value={money(fuelDay)} />
+            <Row label="Líquido" value={money(liquido)} />
           </View>
         </View>
 

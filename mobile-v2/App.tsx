@@ -8,6 +8,8 @@ import { NavigationContainer, DefaultTheme } from "@react-navigation/native";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
 import DailyGoalHeader from "./src/components/DailyGoalHeader";
 
+import "@core/infra/expoGps"; // 👈 registra o TaskManager.defineTask no load
+
 import Home from "./src/screens/Home";
 import Historico from "./src/screens/Historico";
 import Abastecer from "./src/screens/Abastecer";

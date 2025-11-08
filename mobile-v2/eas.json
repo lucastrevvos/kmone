@@ -1,11 +1,21 @@
 {
-  "cli": { "version": ">= 11.0.0" },
+  "cli": {
+    "version": ">= 11.0.0"
+  },
   "build": {
     "preview": {
-      "android": { "buildType": "apk" }
+      "android": {
+        "buildType": "apk"
+      },
+      "distribution": "internal",
+      "channel": "preview"
     },
     "release": {
-      "android": { "gradleCommand": ":app:bundleRelease" }
+      "distribution": "store",
+      "channel": "production"
     }
+  },
+  "submit": {
+    "production": {}
   }
 }
