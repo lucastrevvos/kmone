@@ -1,20 +1,56 @@
+// android/settings.gradle
+
 pluginManagement {
+  repositories {
+    gradlePluginPortal()
+    google()
+    mavenCentral()
+  }
+
+  // RN gradle plugin (included build)
   def reactNativeGradlePlugin = new File(
     providers.exec {
       workingDir(rootDir)
-      commandLine("node", "--print", "require.resolve('@react-native/gradle-plugin/package.json', { paths: [require.resolve('react-native/package.json')] })")
+      commandLine(
+        "node",
+        "--print",
+        "require.resolve('@react-native/gradle-plugin/package.json', { paths: [require.resolve('react-native/package.json')] })"
+      )
     }.standardOutput.asText.get().trim()
   ).getParentFile().absolutePath
   includeBuild(reactNativeGradlePlugin)
-  
+
+  // Expo plugins (included build)
   def expoPluginsPath = new File(
     providers.exec {
       workingDir(rootDir)
-      commandLine("node", "--print", "require.resolve('expo-modules-autolinking/package.json', { paths: [require.resolve('expo/package.json')] })")
+      commandLine(
+        "node",
+        "--print",
+        "require.resolve('expo-modules-autolinking/package.json', { paths: [require.resolve('expo/package.json')] })"
+      )
     }.standardOutput.asText.get().trim(),
     "../android/expo-gradle-plugin"
   ).absolutePath
   includeBuild(expoPluginsPath)
+
+  // 🔒 Garanta que QUALQUER subprojeto use estas versões:
+  plugins {
+    id("org.jetbrains.kotlin.android") version "2.1.20"
+    id("com.google.devtools.ksp") version "2.1.20-1.0.29"
+  }
+
+  resolutionStrategy {
+    eachPlugin { requested ->
+      def id = requested.id.id
+      if (id.startsWith("org.jetbrains.kotlin") || id.startsWith("kotlin")) {
+        useVersion("2.1.20")
+      }
+      if (id == "com.google.devtools.ksp") {
+        useVersion("2.1.20-1.0.29")
+      }
+    }
+  }
 }
 
 plugins {
@@ -30,10 +66,10 @@ extensions.configure(com.facebook.react.ReactSettingsExtension) { ex ->
   }
 }
 expoAutolinking.useExpoModules()
+expoAutolinking.useExpoVersionCatalog()
 
 rootProject.name = 'mobile-v2'
 
-expoAutolinking.useExpoVersionCatalog()
-
+// ❌ sem dependencyResolutionManagement/repositoriesMode aqui
 include ':app'
 includeBuild(expoAutolinking.reactNativeGradlePlugin)
