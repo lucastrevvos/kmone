@@ -34,20 +34,15 @@ pluginManagement {
   ).absolutePath
   includeBuild(expoPluginsPath)
 
-  // 🔒 Garanta que QUALQUER subprojeto use estas versões:
-  plugins {
-    id("org.jetbrains.kotlin.android") version "2.1.20"
-    id("com.google.devtools.ksp") version "2.1.20-1.0.29"
-  }
-
+  // 🔒 Trava de versões para evitar mismatch (Kotlin/KSP)
   resolutionStrategy {
-    eachPlugin { requested ->
-      def id = requested.id.id
-      if (id.startsWith("org.jetbrains.kotlin") || id.startsWith("kotlin")) {
-        useVersion("2.1.20")
+    eachPlugin { details ->
+      def pid = details.requested.id.id
+      if (pid.startsWith("org.jetbrains.kotlin") || pid.startsWith("kotlin")) {
+        details.useVersion("2.1.20")
       }
-      if (id == "com.google.devtools.ksp") {
-        useVersion("2.1.20-1.0.29")
+      if (pid == "com.google.devtools.ksp") {
+        details.useVersion("2.1.20-1.0.29")
       }
     }
   }
