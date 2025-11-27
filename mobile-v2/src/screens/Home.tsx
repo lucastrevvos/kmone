@@ -49,6 +49,8 @@ export default function Home() {
   const rsPorKm = totalKm > 0 ? totalBruto / totalKm : 0;
   const abaixoMetaRSkm = rsPorKm > 0 && rsPorKm < settings.metaMinRSKm;
 
+  const totalRides = rides.length;
+
   async function onPrimaryButton() {
     if (!running) {
       const b = Number(bruto.replace(",", "."));
@@ -73,8 +75,8 @@ export default function Home() {
           setBruto("");
           setSavedBanner(
             `Corrida salva: ${kmNum.toFixed(2)} km • ${money(
-              draft.receitaBruta
-            )}`
+              draft.receitaBruta,
+            )}`,
           );
           setTimeout(() => setSavedBanner(null), 2500);
         }
@@ -113,9 +115,9 @@ export default function Home() {
             </Text>
           </View>
           <View className="items-end">
-            <Text className="text-[11px] text-slate-500">R$/km</Text>
+            <Text className="text-[15px] text-slate-500">R$/km</Text>
             <Text
-              className={`text-base font-semibold ${
+              className={`text-[18px] font-semibold ${
                 abaixoMetaRSkm ? "text-amber-700" : "text-black"
               }`}
             >
@@ -245,6 +247,17 @@ export default function Home() {
 
         {/* Corridas de hoje */}
         <View className="gap-2">
+          <View className="flex-row items-center justify-between mb-1">
+            <Text className="text-base font-semibold text-slate-800">
+              Corridas de hoje
+            </Text>
+
+            <Text className="text-sm font-semibold text-emerald-700">
+              {totalRides === 0
+                ? "Nenhuma corrida ainda"
+                : `${totalRides} corrida${totalRides === 1 ? "" : "s"}`}
+            </Text>
+          </View>
           {rides.map((r) => (
             <RideItem
               key={r.id}

@@ -32,7 +32,7 @@ export default function DailyGoalHeader() {
       const abaixoMeta = rsKm > 0 && rsKm < settings.metaMinRSKm;
       const pct = Math.min(
         100,
-        (totalBruto / Math.max(1, settings.metaDiariaBruta)) * 100
+        (totalBruto / Math.max(1, settings.metaDiariaBruta)) * 100,
       );
       const falta = Math.max(0, settings.metaDiariaBruta - totalBruto);
       return { totalKm, totalBruto, totalFuel, rsKm, abaixoMeta, pct, falta };
@@ -42,7 +42,7 @@ export default function DailyGoalHeader() {
 
   return (
     <View
-      className="bg-white border-b border-slate-200"
+      className="bg-neutral-200 border-b border-slate-200"
       style={{
         paddingTop: insets.top + 10,
         paddingBottom: 12,
@@ -51,8 +51,8 @@ export default function DailyGoalHeader() {
     >
       {/* Linha 1: branding + resumo */}
       <View className="flex-row justify-between items-center">
-        <Text className="text-xs text-slate-500">kmone.trevvos.com.br</Text>
-        <Text className="text-xs text-slate-600">
+        <Text className="text-sm text-slate-500">kmone.trevvos.com.br</Text>
+        <Text className="text-2xl text-slate-600">
           Bruto <Text className="font-semibold">{money(totalBruto)}</Text> • Km{" "}
           <Text className="font-semibold">{totalKm.toFixed(1)}</Text>
         </Text>
@@ -71,8 +71,8 @@ export default function DailyGoalHeader() {
       {/* Meta diária */}
       <View className="mt-3">
         <View className="flex-row justify-between mb-1">
-          <Text className="text-sm text-slate-700">Meta diária</Text>
-          <Text className="text-sm font-semibold text-slate-800">
+          <Text className="text-xl text-slate-700">Meta diária</Text>
+          <Text className="text-xl font-semibold text-slate-800">
             {hit ? "Meta batida 🎯" : `Faltam ${money(falta)}`}
           </Text>
         </View>
@@ -88,11 +88,11 @@ export default function DailyGoalHeader() {
         </View>
 
         <View className="mt-1.5 flex-row justify-between">
-          <Text className="text-[11px] text-slate-500">
+          <Text className="text-[18px] text-slate-500">
             Combustível: {money(totalFuel)}
           </Text>
           <Text
-            className={`text-[11px] ${
+            className={`text-[18px] ${
               abaixoMeta ? "text-amber-700" : "text-slate-600"
             }`}
           >

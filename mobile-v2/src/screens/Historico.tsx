@@ -86,7 +86,7 @@ async function exportRangeCsv(label: string, rides: Ride[]) {
 /** Busca corridas num intervalo sem mudar a infra existente */
 async function listRidesRange(
   startISO: string,
-  endISO: string
+  endISO: string,
 ): Promise<Ride[]> {
   const all: Ride[] = [];
   for (const day of eachDay(startISO, endISO)) {
@@ -126,6 +126,7 @@ export default function Historico() {
   const km = rides.reduce((s, r) => s + r.kmRodado, 0);
   const liquido = total - fuelDay;
   const isToday = dateISO === todayLocalISO();
+  const totalRides = rides.length;
 
   async function onExport() {
     if (rides.length === 0) {
@@ -254,6 +255,7 @@ export default function Historico() {
             <Row label="Km" value={`${km.toFixed(2)} km`} />
             <Row label="Combustível" value={money(fuelDay)} />
             <Row label="Líquido" value={money(liquido)} />
+            <Row label="Total de Corridas" value={String(totalRides)} />
           </View>
         </View>
 
