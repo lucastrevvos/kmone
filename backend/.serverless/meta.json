@@ -1,0 +1,147 @@
+{
+  "C:\\Users\\lucas\\Documents\\PROJETOS\\kmone\\backend\\serverless.yml": {
+    "versionFramework": "4.18.0",
+    "servicePath": "C:\\Users\\lucas\\Documents\\PROJETOS\\kmone\\backend\\serverless.yml",
+    "serviceConfigFileName": "serverless.yml",
+    "service": {
+      "service": "kmone-backend",
+      "frameworkVersion": "3",
+      "provider": {
+        "name": "aws",
+        "runtime": "nodejs20.x",
+        "region": "sa-east-1",
+        "stage": "staging",
+        "httpApi": {
+          "payload": "2.0",
+          "cors": {
+            "allowedOrigins": [
+              "*"
+            ],
+            "allowedMethods": [
+              "GET",
+              "POST",
+              "PUT",
+              "DELETE",
+              "OPTIONS"
+            ],
+            "allowedHeaders": [
+              "Content-Type",
+              "Authorization"
+            ],
+            "maxAge": 86400
+          }
+        },
+        "environment": {
+          "NODE_ENV": "production",
+          "DATABASE_URL": "postgresql://neondb_owner:npg_Tpc2Qa5YBumJ@ep-bold-wind-achnwl93-pooler.sa-east-1.aws.neon.tech/kmone?sslmode=require&channel_binding=require"
+        }
+      },
+      "functions": {
+        "api": {
+          "handler": "dist/handler.handler",
+          "events": [
+            {
+              "httpApi": "*"
+            }
+          ]
+        }
+      },
+      "package": {
+        "patterns": [
+          "dist/**",
+          "node_modules/**",
+          "package.json",
+          "!**/*.map",
+          "!src/**"
+        ]
+      }
+    },
+    "provider": {
+      "name": "aws",
+      "runtime": "nodejs20.x",
+      "region": "sa-east-1",
+      "stage": "staging",
+      "httpApi": {
+        "payload": "2.0",
+        "cors": {
+          "allowedOrigins": [
+            "*"
+          ],
+          "allowedMethods": [
+            "GET",
+            "POST",
+            "PUT",
+            "DELETE",
+            "OPTIONS"
+          ],
+          "allowedHeaders": [
+            "Content-Type",
+            "Authorization"
+          ],
+          "maxAge": 86400
+        }
+      },
+      "environment": {
+        "NODE_ENV": "production",
+        "DATABASE_URL": "postgresql://neondb_owner:npg_Tpc2Qa5YBumJ@ep-bold-wind-achnwl93-pooler.sa-east-1.aws.neon.tech/kmone?sslmode=require&channel_binding=require"
+      }
+    },
+    "dashboard": {
+      "isEnabledForService": false,
+      "requiredAuthentication": false,
+      "orgFeaturesInUse": null,
+      "orgObservabilityIntegrations": null,
+      "serviceAppId": null,
+      "serviceProvider": null,
+      "instanceParameters": null
+    },
+    "error": {
+      "message": "The Serverless version (4.18.0) does not satisfy the \"frameworkVersion\" (3) in serverless",
+      "stack": "ServerlessError2: The Serverless version (4.18.0) does not satisfy the \"frameworkVersion\" (3) in serverless\n    at Service.loadServiceFileParam (file:///C:/Users/lucas/.serverless/releases/4.18.0/package/dist/sf-core.js:1399:9199)\n    at Service.load (file:///C:/Users/lucas/.serverless/releases/4.18.0/package/dist/sf-core.js:1399:6841)\n    at Serverless.init (file:///C:/Users/lucas/.serverless/releases/4.18.0/package/dist/sf-core.js:1405:9809)\n    at runFramework (file:///C:/Users/lucas/.serverless/releases/4.18.0/package/dist/sf-core.js:1432:856)\n    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)\n    at async TraditionalRunner.run (file:///C:/Users/lucas/.serverless/releases/4.18.0/package/dist/sf-core.js:1428:28331)\n    at async route (file:///C:/Users/lucas/.serverless/releases/4.18.0/package/dist/sf-core.js:1603:2878)\n    at async Object.run (file:///C:/Users/lucas/.serverless/releases/4.18.0/package/dist/sf-core.js:1604:3661)\n    at async run2 (file:///C:/Users/lucas/.serverless/releases/4.18.0/package/dist/sf-core.js:1604:4815)",
+      "code": "FRAMEWORK_VERSION_MISMATCH"
+    },
+    "serviceRawFile": "service: kmone-backend\r\nframeworkVersion: \"3\"\r\n\r\nprovider:\r\n  name: aws\r\n  runtime: nodejs20.x\r\n  region: sa-east-1\r\n  stage: staging\r\n  httpApi:\r\n    payload: \"2.0\"\r\n    cors:\r\n      allowedOrigins:\r\n        - \"*\" # libera para qualquer origem\r\n      allowedMethods:\r\n        - GET\r\n        - POST\r\n        - PUT\r\n        - DELETE\r\n        - OPTIONS\r\n      allowedHeaders:\r\n        - Content-Type\r\n        - Authorization\r\n      maxAge: 86400\r\n\r\n  environment:\r\n    NODE_ENV: \"production\"\r\n    DATABASE_URL: ${env:DATABASE_URL, 'dummy'}\r\n\r\nfunctions:\r\n  api:\r\n    handler: dist/handler.handler\r\n    events:\r\n      - httpApi: \"*\"\r\n\r\npackage:\r\n  patterns:\r\n    - dist/**\r\n    - node_modules/**\r\n    - package.json\r\n    - \"!**/*.map\"\r\n    - \"!src/**\"\r\n",
+    "command": [
+      "invoke"
+    ],
+    "options": {
+      "log": true,
+      "function": "api"
+    },
+    "orgId": "0969322c-746d-413b-8df0-69ea18890f95",
+    "orgName": "trevvos",
+    "userId": "46sm61D1Zvhl4CpVMz",
+    "userName": "trevvos",
+    "serviceProviderAwsAccountId": "160382899049",
+    "serviceProviderAwsCfStackName": "kmone-backend-staging",
+    "serviceProviderAwsCfStackId": "arn:aws:cloudformation:sa-east-1:160382899049:stack/kmone-backend-staging/09d92a90-78bb-11f0-892c-06c06d7c40e7",
+    "serviceProviderAwsCfStackCreated": "2025-08-14T03:01:56.896Z",
+    "serviceProviderAwsCfStackUpdated": "2025-08-15T01:16:03.832Z",
+    "serviceProviderAwsCfStackStatus": "UPDATE_COMPLETE",
+    "serviceProviderAwsCfStackOutputs": [
+      {
+        "OutputKey": "ApiLambdaFunctionQualifiedArn",
+        "OutputValue": "arn:aws:lambda:sa-east-1:160382899049:function:kmone-backend-staging-api:22",
+        "Description": "Current Lambda function version",
+        "ExportName": "sls-kmone-backend-staging-ApiLambdaFunctionQualifiedArn"
+      },
+      {
+        "OutputKey": "HttpApiId",
+        "OutputValue": "avygdtec35",
+        "Description": "Id of the HTTP API",
+        "ExportName": "sls-kmone-backend-staging-HttpApiId"
+      },
+      {
+        "OutputKey": "ServerlessDeploymentBucketName",
+        "OutputValue": "kmone-backend-staging-serverlessdeploymentbucket-vwqdhuyphrcr",
+        "ExportName": "sls-kmone-backend-staging-ServerlessDeploymentBucketName"
+      },
+      {
+        "OutputKey": "HttpApiUrl",
+        "OutputValue": "https://avygdtec35.execute-api.sa-east-1.amazonaws.com",
+        "Description": "URL of the HTTP API",
+        "ExportName": "sls-kmone-backend-staging-HttpApiUrl"
+      }
+    ]
+  }
+}

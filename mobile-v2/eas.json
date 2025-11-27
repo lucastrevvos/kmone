@@ -1,0 +1,27 @@
+{
+  "cli": {
+    "version": ">= 11.0.0"
+  },
+  "build": {
+    "preview": {
+      "android": {
+        "buildType": "apk"
+      },
+      "distribution": "internal",
+      "channel": "preview",
+      "cache": {
+        "key": "kotlin-2.1.20-ksp-1.0.29-v1"
+      }
+    },
+    "release": {
+      "distribution": "store",
+      "channel": "production",
+      "cache": {
+        "key": "kotlin-2.1.20-ksp-1.0.29-v1"
+      }
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}

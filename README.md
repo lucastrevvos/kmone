@@ -1,56 +1,107 @@
-# KM One
+# KM One Monorepo
 
-KM One é uma plataforma inovadora desenvolvida para motoristas de aplicativos como Uber, 99 e InDrive, oferecendo ferramentas avançadas de gestão financeira, controle de corridas, cálculo de lucros e acesso a uma rede de parcerias locais.
+- web/ (landing)
+- backend/ (API)
+- mobile/ (app)
 
-Embora seja uma iniciativa privada, o projeto foi desenhado com um padrão técnico robusto, aplicando as melhores práticas em frontend (ReactJS + Tailwind), backend conectado (próximas etapas) e deploy automatizado na AWS Amplify com domínio customizado.
+Pendente pro MVP (pick & play)
 
----
+Fluxo de edição/exclusão
 
-## 🌟 Visão do Projeto
+✅ Editar ride (ok)
 
-KM One nasce para resolver um problema real enfrentado diariamente por motoristas de apps: a falta de clareza sobre seus ganhos reais, despesas ocultas e oportunidades locais.  
-Mais do que um app financeiro, ele busca criar um **ecossistema inteligente** para que o motorista maximize ganhos e minimize custos, tornando-se mais eficiente e lucrativo.
+☐ Excluir via toast/undo também na Home (mesma UX do Histórico)
 
----
+☐ Editar/excluir abastecimento
 
-## 🛠 Funcionalidades principais (primeira versão)
+Metas e alertas
 
-✅ Registro centralizado de ganhos por app (Uber, 99, InDrive)  
-✅ Cálculo automático de lucro líquido diário, semanal e mensal  
-✅ Controle de abastecimentos e despesas (manutenção, pedágios, lava-rápido)  
-✅ Lista VIP para early adopters com acesso antecipado e benefícios exclusivos  
-✅ Planejamento futuro para fórum entre motoristas, parcerias locais e dicas de otimização
+☐ Meta diária com streak simples (dias batidos seguidos)
 
----
+☐ Alerta de “faltam R$ X pra meta” com CTA pra registrar corrida/abastecimento
 
-## 🔒 Compromisso com privacidade
+☐ Meta R$/km por app (Uber/99) opcional
 
-Desde o início, o projeto adota um modelo consciente em relação à privacidade e proteção de dados pessoais, seguindo os princípios da LGPD (Lei Geral de Proteção de Dados), com políticas claras e acessíveis diretamente na landing page.
+GPS & tracking
 
----
+☐ Pausar/retomar corrida (além de iniciar/encerrar)
 
-## 🚀 Diferenciais técnicos
+☐ Proteção contra pocket touches (confirmação ao encerrar)
 
-- Frontend em ReactJS com TailwindCSS, garantindo leveza e performance.
-- Integração com Formspree para coleta inicial de leads, sem backend próprio nesta fase.
-- Deploy gerenciado via AWS Amplify, com domínio customizado (kmone.trevvos.com.br).
-- Estrutura modular, preparada para expansão (novos módulos, backend dedicado e aplicativos móveis).
+☐ Aviso de GPS desligado/sem permissão + atalho
 
----
+Histórico
 
-## 🤝 Sobre o projeto
+☐ Filtro por app e por faixa de valor
 
-KM One faz parte do ecossistema **Trevvos**, uma rede de soluções digitais desenvolvidas para facilitar a vida de usuários comuns, conectando serviços, informações e ferramentas práticas em áreas como finanças, mobilidade e bem-estar.
+☐ Totais por dia/semana/mês (apenas UI; nada de export por enquanto)
 
-O projeto foi idealizado e desenvolvido de forma independente, demonstrando capacidades avançadas de:
-- Liderança técnica
-- Arquitetura e desenvolvimento frontend
-- Gestão de produto e visão de mercado
+☐ Busca por observação (se formos adicionar obs nas corridas)
 
----
+Abastecimento
 
-## 📬 Contato
+☐ Calcular custo/km do dia (combustível/quilômetro)
 
-Interessado em saber mais, colaborar ou explorar o projeto?  
-Entre em contato: [contato@trevvos.com.br](mailto:contato@trevvos.com,br)
+☐ Tipo de combustível padrão (memória)
 
+☐ Botão “repetir último posto” (auto-preenche)
+
+UX / UI polimento
+
+☐ Estados vazios mais “vivos” (ilustra + CTA)
+
+☐ Haptics em mais ações (salvar/excluir/erro)
+
+☐ Pequenas animações (fade/scale) nas listas
+
+Resiliência & dados
+
+☐ Validações de input (número, mínimo/máximo, vírgula/ponto)
+
+☐ Sanitização de chaves no AsyncStorage (evitar sujar storage)
+
+☐ Migração leve caso mudemos o formato (v1 → v2)
+
+Configurações
+
+☐ Reset rápido do dia (apagar tudo do dia atual com confirmação)
+
+☐ Importar dados locais de backup (.json simples)
+
+☐ Mostrar versão do app + build info
+
+Erros & logs
+
+☐ Tratamento visual de erros (banner discreto)
+
+☐ Log de diagnóstico opcional (toggle em Config)
+
+Acessibilidade & idioma
+
+☐ Dinâmico para font size do sistema
+
+☐ VoiceOver/TalkBack labels básicos
+
+☐ Ajuste de contraste nos chips/botões
+
+Qualidade
+
+☐ Testes unitários dos use cases (rides/settings/fuel)
+
+☐ Teste de cálculo de R$/km e metas
+
+☐ Smoke test: iniciar → encerrar → editar → excluir
+
+Build & entrega
+
+☐ EAS build config mínima (dev/prod)
+
+☐ Ícones/splash final
+
+☐ Versionamento semântico e CHANGELOG
+
+Segurança/privacidade
+
+☐ Aviso simples de privacidade (dados locais no dispositivo)
+
+☐ Botão “apagar tudo” (wipe)

@@ -1,0 +1,79 @@
+{
+  "expo": {
+    "name": "mobile-v2",
+    "slug": "mobile-v2",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "O KM One usa sua localização para calcular os quilômetros rodados durante a corrida.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "O KM One pode continuar medindo os quilômetros mesmo quando o app estiver em segundo plano (opcional)."
+      },
+      "runtimeVersion": {
+        "policy": "appVersion"
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "FOREGROUND_SERVICE",
+        "ACCESS_BACKGROUND_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "FOREGROUND_SERVICE",
+        "ACCESS_BACKGROUND_LOCATION"
+      ],
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false,
+      "package": "com.lucastrevvos.mobilev2",
+      "versionCode": 2,
+      "runtimeVersion": "1.0.0"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "kotlinVersion": "2.0.21",
+            "gradleProperties": {
+              "expo.kspVersion": "2.0.21-1.0.28"
+            },
+            "ndk": {
+              "abiFilters": [
+                "arm64-v8a",
+                "armeabi-v7a",
+                "x86_64",
+                "x86"
+              ]
+            }
+          }
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "50d9be07-de3e-4e39-ba97-a77a5dd3b090"
+      }
+    },
+    "updates": {
+      "url": "https://u.expo.dev/50d9be07-de3e-4e39-ba97-a77a5dd3b090"
+    }
+  }
+}
