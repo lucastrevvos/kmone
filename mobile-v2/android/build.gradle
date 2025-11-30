@@ -1,15 +1,39 @@
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
 
 buildscript {
+  ext {
+    // 🔧 Alinhando com o que o KSP está pedindo (Kotlin 2.1.20)
+    kotlinVersion = "2.1.20"
+    kspVersion = "2.1.20-1.0.32"
+  }
+
   repositories {
     google()
     mavenCentral()
   }
+
   dependencies {
-    // Versões resolvidas via settings.gradle (pluginManagement.resolutionStrategy)
-    classpath('com.android.tools.build:gradle')
-    classpath('com.facebook.react:react-native-gradle-plugin')
-    classpath('org.jetbrains.kotlin:kotlin-gradle-plugin')
+    // Versões resolvidas via classpath + resolutionStrategy
+    classpath("com.android.tools.build:gradle")
+    classpath("com.facebook.react:react-native-gradle-plugin")
+
+    // ⚙️ Garante que o compilador Kotlin no classpath é 2.1.20
+    classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlinVersion")
+
+    // ⚙️ Garante que o KSP no classpath é compatível com Kotlin 2.1.20
+    classpath("com.google.devtools.ksp:symbol-processing-gradle-plugin:$kspVersion")
+  }
+
+  // Força TODAS as dependências Kotlin e KSP a usarem essas versões
+  configurations.classpath {
+    resolutionStrategy.eachDependency { details ->
+      if (details.requested.group == "org.jetbrains.kotlin") {
+        details.useVersion kotlinVersion
+      }
+      if (details.requested.group == "com.google.devtools.ksp") {
+        details.useVersion kspVersion
+      }
+    }
   }
 }
 
