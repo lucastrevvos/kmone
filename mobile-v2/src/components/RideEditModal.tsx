@@ -33,7 +33,7 @@ function assertRide(x: Ride | null): asserts x is Ride {
 export default function RideEditModal({ visible, ride, onClose }: Props) {
   const [km, setKm] = useState("");
   const [bruto, setBruto] = useState("");
-  const [app, setApp] = useState<"Uber" | "99">("Uber");
+  const [app, setApp] = useState<"Uber" | "99" | "Outros">("Uber");
   const [saving, setSaving] = useState(false);
   const [removing, setRemoving] = useState(false);
 
@@ -144,7 +144,7 @@ export default function RideEditModal({ visible, ride, onClose }: Props) {
           </View>
 
           <View className="flex-row gap-2">
-            {(["Uber", "99"] as const).map((opt) => {
+            {(["Uber", "99", "Outros"] as const).map((opt) => {
               const active = app === opt;
               return (
                 <Pressable

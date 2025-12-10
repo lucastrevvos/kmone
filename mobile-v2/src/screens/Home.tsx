@@ -3,7 +3,17 @@ import { useSettingsStore } from "@state/useSettingsStore";
 import { useTrackingStore } from "@state/useTrackingStore";
 import { money } from "@utils/format";
 import { useEffect, useState } from "react";
-import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import {
+  Pressable,
+  ScrollView,
+  Text,
+  TextInput,
+  View,
+  Modal,
+  Platform,
+  ToastAndroid,
+  Alert,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 
@@ -24,11 +34,17 @@ export default function Home() {
     undoLastDelete, // 👈 vem do store
   } = useRideStore();
   const { settings, load: loadSettings } = useSettingsStore();
-  const { running, distanceMeters, startWithDraft, stop } = useTrackingStore();
+  const {
+    running,
+    distanceMeters,
+    startWithDraft,
+    stop,
+    restoreTrackingSession,
+  } = useTrackingStore();
 
   // UI local
   const [bruto, setBruto] = useState("");
-  const [app, setApp] = useState<"Uber" | "99">("Uber");
+  const [app, setApp] = useState<"Uber" | "99" | "Outros">("Uber");
   const [savedBanner, setSavedBanner] = useState<string | null>(null);
   const [editing, setEditing] = useState<Ride | null>(null);
   const [undoVisible, setUndoVisible] = useState(false);
@@ -37,10 +53,22 @@ export default function Home() {
     typeof setTimeout
   > | null>(null);
 
+  const [manualVisible, setManualVisible] = useState(false);
+  const [manualBruto, setManualBruto] = useState("");
+  const [manualKm, setManualKm] = useState("");
+  const [manualApp, setManualApp] = useState<"Uber" | "99" | "Outros">("Uber");
+
+  const [trackingRecovered, setTrackingRecovered] = useState(false);
+
   useEffect(() => {
     loadRides();
     loadSettings();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    restoreTrackingSession?.().then(() => {
+      const s = useTrackingStore.getState();
+      if (s.running && s.draft) {
+        setTrackingRecovered(true);
+      }
+    });
   }, []);
 
   // resumo compacto
@@ -50,6 +78,14 @@ export default function Home() {
   const abaixoMetaRSkm = rsPorKm > 0 && rsPorKm < settings.metaMinRSKm;
 
   const totalRides = rides.length;
+
+  function showToast(msg: string) {
+    if (Platform.OS === "android") {
+      ToastAndroid.show(msg, ToastAndroid.SHORT);
+    } else {
+      Alert.alert("Aviso", msg);
+    }
+  }
 
   async function onPrimaryButton() {
     if (!running) {
@@ -103,6 +139,41 @@ export default function Home() {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   }
 
+  async function handleSaveManual() {
+    const brutoNum = Number(manualBruto.replace(",", "."));
+    const kmNum = Number(manualKm.replace(",", "."));
+
+    if (!brutoNum || brutoNum <= 0 || !kmNum || kmNum <= 0) {
+      showToast("Preencha o valor e o KM corretamente");
+      return;
+    }
+
+    try {
+      await addRide({
+        receitaBruta: brutoNum,
+        kmRodado: +kmNum.toFixed(2),
+        app: manualApp,
+      });
+
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+      setSavedBanner(
+        `Corrida manual salva: ${kmNum.toFixed(2)} km • ${money(brutoNum)}`,
+      );
+
+      setTimeout(() => setSavedBanner(null), 2500);
+
+      setManualBruto("");
+      setManualKm("");
+      setManualApp("Uber");
+      setManualVisible(false);
+    } catch (error) {
+      console.error("save manual ride:", error);
+    }
+  }
+
+  const ridesSorted = [...rides].reverse();
+
   return (
     <ScrollView className="flex-1 bg-white">
       <View className="p-6 gap-6">
@@ -125,6 +196,33 @@ export default function Home() {
             </Text>
           </View>
         </View>
+        {/* 🔶 Banner corrida recuperada */}
+        {trackingRecovered && running && (
+          <View className="mt-3 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 flex-row items-start">
+            <Ionicons
+              name="refresh"
+              size={16}
+              color="#92400E"
+              style={{ marginTop: 2, marginRight: 6 }}
+            />
+            <View className="flex-1">
+              <Text className="text-xs font-semibold text-amber-800">
+                Corrida em andamento recuperada
+              </Text>
+              <Text className="text-[11px] text-amber-800/90 mt-0.5">
+                Continuamos rastreando essa corrida. Distância atual:{" "}
+                <Text className="font-semibold">
+                  {(distanceMeters / 1000).toFixed(2)} km
+                </Text>
+                . Quando terminar, toque em{" "}
+                <Text className="font-semibold">“Encerrar e salvar”.</Text>
+              </Text>
+            </View>
+            <Pressable onPress={() => setTrackingRecovered(false)}>
+              <Ionicons name="close" size={14} color="#92400E" />
+            </Pressable>
+          </View>
+        )}
 
         {/* Banner salva */}
         {savedBanner && (
@@ -158,7 +256,7 @@ export default function Home() {
 
           {/* App chips */}
           <View className="flex-row gap-3">
-            {(["Uber", "99"] as const).map((opt) => {
+            {(["Uber", "99", "Outros"] as const).map((opt) => {
               const active = app === opt;
               return (
                 <Pressable
@@ -248,17 +346,35 @@ export default function Home() {
         {/* Corridas de hoje */}
         <View className="gap-2">
           <View className="flex-row items-center justify-between mb-1">
-            <Text className="text-base font-semibold text-slate-800">
-              Corridas de hoje
-            </Text>
+            <View>
+              <Text className="text-base font-semibold text-slate-800">
+                Corridas de hoje
+              </Text>
+              <Text className="text-xs font-semibold text-emerald-700 mt-0.5">
+                {totalRides === 0
+                  ? ""
+                  : `${totalRides} corrida${totalRides === 1 ? "" : "s"}`}
+              </Text>
+            </View>
 
-            <Text className="text-sm font-semibold text-emerald-700">
-              {totalRides === 0
-                ? "Nenhuma corrida ainda"
-                : `${totalRides} corrida${totalRides === 1 ? "" : "s"}`}
-            </Text>
+            <Pressable
+              onPress={() => !running && setManualVisible(true)}
+              className={`flex-row items-center rounded-2xl border px-3 py-2 ${
+                running ? "opacity-40" : ""
+              }`}
+              style={{
+                borderColor: "#E2E8F0",
+                backgroundColor: "#F8FAFC",
+              }}
+              disabled={running}
+            >
+              <Ionicons name="add" size={16} color="#0F766E" />
+              <Text className="ml-1 text-sm font-semibold text-emerald-800">
+                Corrida manual
+              </Text>
+            </Pressable>
           </View>
-          {rides.map((r) => (
+          {ridesSorted.map((r) => (
             <RideItem
               key={r.id}
               ride={r}
@@ -267,7 +383,7 @@ export default function Home() {
               onDeleted={handleDeleted} // 👈 importante
             />
           ))}
-          {rides.length === 0 && (
+          {ridesSorted.length === 0 && (
             <Text className="text-slate-500">Sem corridas hoje.</Text>
           )}
         </View>
@@ -282,6 +398,103 @@ export default function Home() {
           loadRides();
         }}
       />
+
+      <Modal
+        visible={manualVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setManualVisible(false)}
+      >
+        <View className="flex-1 bg-black/40 justify-end">
+          <View className="bg-white rounded-t-3xl p-6 gap-4">
+            <View className="flex-row items-center justify-between mb-2">
+              <Text className="text-lg font-semibold">
+                Lançar corrida manual
+              </Text>
+              <Pressable onPress={() => setManualVisible(false)}>
+                <Ionicons name="close" size={20} color="#64748B"></Ionicons>
+              </Pressable>
+            </View>
+
+            <View>
+              <Text className="mb-1 text-slate-600 text-sm">
+                Valor bruto (R$)
+              </Text>
+              <View className="flex-row items-center rounded-2xl border border-slate-300 px-4 py-2.5">
+                <Text className="text-base text-slate-500 mr-2">R$</Text>
+                <TextInput
+                  keyboardType="numeric"
+                  value={manualBruto}
+                  onChangeText={setManualBruto}
+                  placeholder="0,00"
+                  className="flex-1 text-lg font-semibold"
+                />
+              </View>
+            </View>
+
+            {/*/ KM */}
+
+            <View>
+              <Text className="mb-1 text-slate-600 text-sm">Km Rodado</Text>
+              <View className="flex-row item-center rounded-2xl border border-slate-300 px-4 py-2.5">
+                <TextInput
+                  keyboardType="numeric"
+                  value={manualKm}
+                  onChangeText={setManualKm}
+                  placeholder="0.00"
+                  className="flex-1 text-lg -font-semibold"
+                />
+                <Text className="ml-2 text-slate-500 text-sm">Km</Text>
+              </View>
+            </View>
+
+            {/* App chips (reaproveitando lógica) */}
+            <View className="flex-row gap-3 mt-1">
+              {(["Uber", "99", "Outros"] as const).map((opt) => {
+                const active = manualApp === opt;
+                return (
+                  <Pressable
+                    key={opt}
+                    onPress={() => setManualApp(opt)}
+                    className={`px-4 py-2.5 rounded-2xl border ${
+                      active ? "" : "bg-white border-slate-300"
+                    }`}
+                    style={{
+                      backgroundColor: active ? ACCENT : "white",
+                      borderColor: active ? ACCENT : "#CBD5E1",
+                    }}
+                  >
+                    <Text
+                      className={`font-medium ${
+                        active ? "text-white" : "text-black"
+                      }`}
+                    >
+                      {opt}
+                    </Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+            {/* Botões */}
+            <View className="flex-row mt-4 gap-3">
+              <Pressable
+                onPress={() => setManualVisible(false)}
+                className="flex-1 rounded-2xl border border-slate-300 px-4 py-3 items-center justify-center"
+              >
+                <Text className="text-slate-600 font-medium">Cancelar</Text>
+              </Pressable>
+
+              <Pressable
+                onPress={handleSaveManual}
+                className="flex-1 rounded-2xl px-4 py-3 items-center justify-center"
+                style={{ backgroundColor: ACCENT }}
+              >
+                <Text className="text-white font-semibold">Salvar corrida</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }

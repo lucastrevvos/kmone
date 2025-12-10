@@ -1,10 +1,13 @@
 import { create } from "zustand";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ExpoGpsPort, setBackgroundPointHandler } from "@core/infra/expoGps";
 import type { AppFonte } from "@core/domain/types";
 
+const TRACKING_KEY = "@kmone:tracking-session";
+
 function haversine(
   a: { lat: number; lon: number },
-  b: { lat: number; lon: number }
+  b: { lat: number; lon: number },
 ) {
   const toRad = (x: number) => (x * Math.PI) / 180;
   const R = 6371000;
@@ -31,77 +34,193 @@ type TrackState = {
 
   startWithDraft(d: DraftRide): Promise<void>;
   stop(): Promise<{ distanceMeters: number; draft?: DraftRide }>;
+  restoreTrackingSession(): Promise<void>;
 };
 
 const gps = ExpoGpsPort();
 
-export const useTrackingStore = create<TrackState>((set, get) => ({
-  running: false,
-  distanceMeters: 0,
-  points: [],
+export const useTrackingStore = create<TrackState>((set, get) => {
+  // 👇 Função única para aplicar ponto + persistir estado
+  const applyPoint = (p: TrackPoint) => {
+    const s = get();
 
-  async startWithDraft(draft) {
-    const perm = await gps.ensurePermissions();
-    if (perm !== "granted") throw new Error("Permissão de localização negada");
+    // filtra leituras ruins
+    if (p.accuracy && p.accuracy > 50) return;
 
-    // zera estado
-    set({
-      running: true,
-      distanceMeters: 0,
-      lastPoint: undefined,
-      points: [],
-      draft,
-    });
-
-    // Atualizador comum (usa a mesma lógica para FG/BG)
-    const applyPoint = (p: TrackPoint) => {
-      const s = get();
-
-      // filtra leituras ruins
-      if (p.accuracy && p.accuracy > 50) return;
-
-      // primeiro ponto
-      if (!s.lastPoint) {
-        set({ lastPoint: p, points: [...s.points, p] });
-        return;
-      }
-
-      const d = haversine(s.lastPoint, p);
-
-      // rejeita spikes bizarros
-      if (d <= 0 || d >= 200) {
-        set({ lastPoint: p, points: [...s.points, p] });
-        return;
-      }
-
-      set({
-        distanceMeters: s.distanceMeters + d,
+    // primeiro ponto
+    if (!s.lastPoint) {
+      const next = {
+        ...s,
         lastPoint: p,
         points: [...s.points, p],
-      });
+      };
+      set(next);
+      // persiste distância 0 + lastPoint
+      void AsyncStorage.setItem(
+        TRACKING_KEY,
+        JSON.stringify({
+          running: next.running,
+          distanceMeters: next.distanceMeters,
+          lastPoint: next.lastPoint,
+          draft: next.draft,
+        }),
+      );
+      return;
+    }
+
+    const d = haversine(s.lastPoint, p);
+
+    // rejeita spikes bizarros
+    if (d <= 0 || d >= 200) {
+      const next = {
+        ...s,
+        lastPoint: p,
+        points: [...s.points, p],
+      };
+      set(next);
+      void AsyncStorage.setItem(
+        TRACKING_KEY,
+        JSON.stringify({
+          running: next.running,
+          distanceMeters: next.distanceMeters,
+          lastPoint: next.lastPoint,
+          draft: next.draft,
+        }),
+      );
+      return;
+    }
+
+    const nextDistance = s.distanceMeters + d;
+
+    const next = {
+      ...s,
+      distanceMeters: nextDistance,
+      lastPoint: p,
+      points: [...s.points, p],
     };
 
-    // Foreground watcher
-    await gps.startForeground((p) => applyPoint(p));
+    set(next);
 
-    // Background: define handler global para o Task chamar
-    setBackgroundPointHandler((p) => {
-      // só processa se ainda estiver rodando
-      if (!get().running) return;
-      applyPoint(p);
-    });
+    // persiste distância acumulada + último ponto
+    void AsyncStorage.setItem(
+      TRACKING_KEY,
+      JSON.stringify({
+        running: next.running,
+        distanceMeters: next.distanceMeters,
+        lastPoint: next.lastPoint,
+        draft: next.draft,
+      }),
+    );
+  };
 
-    // Sobe o serviço em 1º plano (Android) e ativa updates de BG
-    await gps.startBackground();
-  },
+  return {
+    running: false,
+    distanceMeters: 0,
+    points: [],
 
-  async stop() {
-    await gps.stop();
-    // remove o handler do background
-    setBackgroundPointHandler(null);
+    async startWithDraft(draft) {
+      const perm = await gps.ensurePermissions();
+      if (perm !== "granted")
+        throw new Error("Permissão de localização negada");
 
-    const { distanceMeters, draft } = get();
-    set({ running: false, draft: undefined });
-    return { distanceMeters, draft };
-  },
-}));
+      // zera estado
+      set({
+        running: true,
+        distanceMeters: 0,
+        lastPoint: undefined,
+        points: [],
+        draft,
+      });
+
+      // persiste início da sessão (km 0)
+      await AsyncStorage.setItem(
+        TRACKING_KEY,
+        JSON.stringify({
+          running: true,
+          distanceMeters: 0,
+          lastPoint: undefined,
+          draft,
+        }),
+      );
+
+      // Foreground watcher
+      await gps.startForeground((p) => applyPoint(p));
+
+      // Background: define handler global para o Task chamar
+      setBackgroundPointHandler((p) => {
+        if (!get().running) return;
+        applyPoint(p);
+      });
+
+      // sobe o serviço em 1º plano (Android) e ativa updates de BG
+      await gps.startBackground();
+    },
+
+    async stop() {
+      await gps.stop();
+      setBackgroundPointHandler(null);
+
+      const { distanceMeters, draft } = get();
+
+      // limpa estado de tracking
+      set({
+        running: false,
+        distanceMeters: 0,
+        lastPoint: undefined,
+        points: [],
+        draft: undefined,
+      });
+
+      // remove rascunho persistido
+      await AsyncStorage.removeItem(TRACKING_KEY);
+
+      return { distanceMeters, draft };
+    },
+
+    // 👇 chamada na inicialização do app / Home
+    async restoreTrackingSession() {
+      const saved = await AsyncStorage.getItem(TRACKING_KEY);
+      if (!saved) return;
+
+      try {
+        const parsed = JSON.parse(saved) as {
+          running?: boolean;
+          distanceMeters?: number;
+          lastPoint?: TrackPoint;
+          draft?: DraftRide;
+        };
+
+        if (!parsed.draft) {
+          // lixo antigo, limpa
+          await AsyncStorage.removeItem(TRACKING_KEY);
+          return;
+        }
+
+        // restaura estado em memória
+        set({
+          running: !!parsed.running,
+          distanceMeters: parsed.distanceMeters ?? 0,
+          lastPoint: parsed.lastPoint,
+          points: [],
+          draft: parsed.draft,
+        });
+
+        // reatacha GPS se ainda estiver rodando
+        if (parsed.running) {
+          const perm = await gps.ensurePermissions();
+          if (perm === "granted") {
+            await gps.startForeground((p) => applyPoint(p));
+            setBackgroundPointHandler((p) => {
+              if (!get().running) return;
+              applyPoint(p);
+            });
+            await gps.startBackground();
+          }
+        }
+      } catch (e) {
+        console.error("restoreTrackingSession error:", e);
+        await AsyncStorage.removeItem(TRACKING_KEY);
+      }
+    },
+  };
+});

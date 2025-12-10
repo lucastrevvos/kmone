@@ -53,7 +53,7 @@ extensions.configure(com.facebook.react.ReactSettingsExtension) { ex ->
 expoAutolinking.useExpoModules()
 expoAutolinking.useExpoVersionCatalog()
 
-rootProject.name = 'mobile-v2'
+rootProject.name = 'km-one'
 
 // ❌ sem dependencyResolutionManagement/repositoriesMode aqui
 include ':app'

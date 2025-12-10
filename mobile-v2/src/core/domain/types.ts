@@ -1,4 +1,4 @@
-export type AppFonte = "Uber" | "99";
+export type AppFonte = "Uber" | "99" | "Outros";
 
 export interface Ride {
   id: string;

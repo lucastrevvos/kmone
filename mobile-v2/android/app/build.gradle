@@ -29,10 +29,10 @@ android {
   buildToolsVersion rootProject.ext.buildToolsVersion
   compileSdk rootProject.ext.compileSdkVersion
 
-  namespace 'com.lucastrevvos.mobilev2'
+  namespace 'com.lucastrevvos.kmone'
 
   defaultConfig {
-    applicationId 'com.lucastrevvos.mobilev2'
+    applicationId 'com.lucastrevvos.kmone'
     minSdkVersion rootProject.ext.minSdkVersion
     targetSdkVersion rootProject.ext.targetSdkVersion
     versionCode 2

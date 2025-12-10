@@ -1,4 +1,4 @@
-package com.lucastrevvos.mobilev2
+package com.lucastrevvos.kmone
 
 import android.os.Build
 import android.os.Bundle
