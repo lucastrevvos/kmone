@@ -21,7 +21,11 @@ function haversine(
   return 2 * R * Math.asin(Math.sqrt(h));
 }
 
-type DraftRide = { receitaBruta: number; app: AppFonte };
+type DraftRide = {
+  receitaBruta: number;
+  app: AppFonte;
+  startedAt: string;
+};
 
 type TrackPoint = { lat: number; lon: number; t: number; accuracy?: number };
 
@@ -32,8 +36,13 @@ type TrackState = {
   points: TrackPoint[];
   draft?: DraftRide;
 
-  startWithDraft(d: DraftRide): Promise<void>;
-  stop(): Promise<{ distanceMeters: number; draft?: DraftRide }>;
+  startWithDraft(d: Omit<DraftRide, "startedAt">): Promise<void>;
+  stop(): Promise<{
+    distanceMeters: number;
+    draft?: DraftRide;
+    endedAt: string;
+    durationMinutes: number;
+  }>;
   restoreTrackingSession(): Promise<void>;
 };
 
@@ -118,12 +127,21 @@ export const useTrackingStore = create<TrackState>((set, get) => {
     distanceMeters: 0,
     points: [],
 
-    async startWithDraft(draft) {
+    async startWithDraft(input) {
       const perm = await gps.ensurePermissions();
-      if (perm !== "granted")
+      if (perm !== "granted") {
         throw new Error("Permissão de localização negada");
+      }
 
-      // zera estado
+      // cria draft completo com horário de início
+      const startedAt = new Date().toISOString();
+      const draft: DraftRide = {
+        receitaBruta: input.receitaBruta,
+        app: input.app,
+        startedAt,
+      };
+
+      // zera estado e marca como rodando
       set({
         running: true,
         distanceMeters: 0,
@@ -162,6 +180,17 @@ export const useTrackingStore = create<TrackState>((set, get) => {
 
       const { distanceMeters, draft } = get();
 
+      const endedAt = new Date().toISOString();
+
+      const durationMinutes = draft?.startedAt
+        ? Math.round(
+            (new Date(endedAt).getTime() -
+              new Date(draft.startedAt).getTime()) /
+              1000 /
+              60,
+          )
+        : 0;
+
       // limpa estado de tracking
       set({
         running: false,
@@ -174,7 +203,12 @@ export const useTrackingStore = create<TrackState>((set, get) => {
       // remove rascunho persistido
       await AsyncStorage.removeItem(TRACKING_KEY);
 
-      return { distanceMeters, draft };
+      return {
+        distanceMeters,
+        draft,
+        endedAt,
+        durationMinutes,
+      };
     },
 
     // 👇 chamada na inicialização do app / Home

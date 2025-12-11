@@ -48,7 +48,6 @@ export default function Home() {
   const [savedBanner, setSavedBanner] = useState<string | null>(null);
   const [editing, setEditing] = useState<Ride | null>(null);
   const [undoVisible, setUndoVisible] = useState(false);
-  // funciona em web e RN
   const [undoTimer, setUndoTimer] = useState<ReturnType<
     typeof setTimeout
   > | null>(null);
@@ -69,6 +68,7 @@ export default function Home() {
         setTrackingRecovered(true);
       }
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // resumo compacto
@@ -78,6 +78,18 @@ export default function Home() {
   const abaixoMetaRSkm = rsPorKm > 0 && rsPorKm < settings.metaMinRSKm;
 
   const totalRides = rides.length;
+
+  // horas em corrida (somando duração das rides do dia)
+  const totalMinutes = rides.reduce(
+    (sum, r) => sum + (r.durationMinutes ?? 0),
+    0,
+  );
+  const horas = Math.floor(totalMinutes / 60);
+  const minutos = totalMinutes % 60;
+  const horasFormatadas =
+    totalMinutes === 0
+      ? "0h"
+      : `${horas}h ${minutos.toString().padStart(2, "0")}min`;
 
   function showToast(msg: string) {
     if (Platform.OS === "android") {
@@ -99,15 +111,27 @@ export default function Home() {
       }
     } else {
       try {
-        const { distanceMeters: dist, draft } = await stop();
+        const {
+          distanceMeters: dist,
+          draft,
+          endedAt,
+          durationMinutes,
+        } = await stop();
+
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
         const kmNum = +(dist / 1000).toFixed(2);
+
         if (draft) {
           await addRide({
             kmRodado: kmNum,
             receitaBruta: draft.receitaBruta,
             app: draft.app,
+            startedAt: draft.startedAt,
+            endedAt,
+            durationMinutes,
           });
+
           setBruto("");
           setSavedBanner(
             `Corrida salva: ${kmNum.toFixed(2)} km • ${money(
@@ -149,10 +173,15 @@ export default function Home() {
     }
 
     try {
+      const now = new Date().toISOString();
+
       await addRide({
         receitaBruta: brutoNum,
         kmRodado: +kmNum.toFixed(2),
         app: manualApp,
+        startedAt: now,
+        endedAt: now,
+        durationMinutes: 0,
       });
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
@@ -196,6 +225,7 @@ export default function Home() {
             </Text>
           </View>
         </View>
+
         {/* 🔶 Banner corrida recuperada */}
         {trackingRecovered && running && (
           <View className="mt-3 rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 flex-row items-start">
@@ -340,6 +370,10 @@ export default function Home() {
                 {settings.metaMinRSKm.toFixed(2)}
               </Text>
             </View>
+            <View className="flex-row justify-between">
+              <Text>Horas em corrida</Text>
+              <Text className="font-semibold">{horasFormatadas}</Text>
+            </View>
           </View>
         </View>
 
@@ -380,7 +414,7 @@ export default function Home() {
               ride={r}
               onEdit={setEditing}
               onChanged={loadRides}
-              onDeleted={handleDeleted} // 👈 importante
+              onDeleted={handleDeleted}
             />
           ))}
           {ridesSorted.length === 0 && (
@@ -399,6 +433,7 @@ export default function Home() {
         }}
       />
 
+      {/* Modal corrida manual */}
       <Modal
         visible={manualVisible}
         transparent
@@ -406,16 +441,17 @@ export default function Home() {
         onRequestClose={() => setManualVisible(false)}
       >
         <View className="flex-1 bg-black/40 justify-end">
-          <View className="bg-white rounded-t-3xl p-6 gap-4">
+          <View className="bg-white rounded-t-3xl p-6 pb-14 gap-4">
             <View className="flex-row items-center justify-between mb-2">
               <Text className="text-lg font-semibold">
                 Lançar corrida manual
               </Text>
               <Pressable onPress={() => setManualVisible(false)}>
-                <Ionicons name="close" size={20} color="#64748B"></Ionicons>
+                <Ionicons name="close" size={20} color="#64748B" />
               </Pressable>
             </View>
 
+            {/* Valor bruto */}
             <View>
               <Text className="mb-1 text-slate-600 text-sm">
                 Valor bruto (R$)
@@ -432,19 +468,18 @@ export default function Home() {
               </View>
             </View>
 
-            {/*/ KM */}
-
+            {/* Km rodado */}
             <View>
-              <Text className="mb-1 text-slate-600 text-sm">Km Rodado</Text>
-              <View className="flex-row item-center rounded-2xl border border-slate-300 px-4 py-2.5">
+              <Text className="mb-1 text-slate-600 text-sm">Km rodado</Text>
+              <View className="flex-row items-center rounded-2xl border border-slate-300 px-4 py-2.5">
                 <TextInput
                   keyboardType="numeric"
                   value={manualKm}
                   onChangeText={setManualKm}
                   placeholder="0.00"
-                  className="flex-1 text-lg -font-semibold"
+                  className="flex-1 text-lg font-semibold"
                 />
-                <Text className="ml-2 text-slate-500 text-sm">Km</Text>
+                <Text className="ml-2 text-slate-500 text-sm">km</Text>
               </View>
             </View>
 
@@ -475,6 +510,7 @@ export default function Home() {
                 );
               })}
             </View>
+
             {/* Botões */}
             <View className="flex-row mt-4 gap-3">
               <Pressable

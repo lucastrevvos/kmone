@@ -2,54 +2,73 @@ import { View, Text, Pressable, Alert } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import type { Ride } from "@core/domain/types";
 import { money } from "@utils/format";
-import { rideRepo } from "@core/infra/asyncStorageRepos";
 
 const ACCENT = "#10B981";
 
 type Props = {
   ride: Ride;
   onEdit?: (r: Ride) => void;
-  onChanged?: () => void; // chamado após excluir/editar
-  onDeleted?: (r: Ride) => void | Promise<void>; // 👈 add isso
+  onChanged?: () => void; // ainda útil pra "após editar"
+  onDeleted?: (r: Ride) => void | Promise<void>;
 };
 
-export default function RideItem({ ride, onEdit, onChanged }: Props) {
+function formatTime(iso?: string) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return d.toLocaleTimeString("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+export default function RideItem({
+  ride,
+  onEdit,
+  onChanged,
+  onDeleted,
+}: Props) {
   function confirmDelete() {
-    // Botão de alerta que REALMENTE chama o repo.remove no onPress
     Alert.alert(
       "Excluir corrida?",
       `Isso removerá: ${ride.kmRodado.toFixed(2)} km • ${money(
-        ride.receitaBruta
+        ride.receitaBruta,
       )}`,
       [
         { text: "Cancelar", style: "cancel" },
         {
           text: "Excluir",
           style: "destructive",
-          onPress: () => doDelete(), // garante a invocação
+          onPress: () => {
+            void doDelete();
+          },
         },
       ],
-      { cancelable: true }
+      { cancelable: true },
     );
   }
 
   async function doDelete() {
     try {
-      // IMPORTANTE: usar a data da corrida
-      await rideRepo.remove(ride.id, ride.dataISO);
-      console.log("[RideItem] removido:", ride.id, "dia:", ride.dataISO);
-      onChanged?.(); // recarrega lista
+      if (onDeleted) {
+        await onDeleted(ride);
+      } else {
+        console.warn("[RideItem] onDeleted não informado, nada foi removido.");
+      }
     } catch (e) {
-      console.error("[RideItem] erro ao remover:", e);
+      console.error("[RideItem] erro ao remover via onDeleted:", e);
       Alert.alert("Erro", "Não foi possível excluir a corrida.");
     }
   }
 
+  const hasTime = !!(ride.startedAt && ride.endedAt);
+  const dur = ride.durationMinutes ?? 0;
+
   return (
     <View
-      className="rounded-2xl border border-slate-200 p-3"
+      className="rounded-2xl border border-slate-200 p-3 mb-2"
       style={{ backgroundColor: "#FFFFFF" }}
     >
+      {/* Linha app + botões */}
       <View className="flex-row items-center justify-between mb-1">
         <View
           className="px-2 py-1 rounded-full"
@@ -74,13 +93,23 @@ export default function RideItem({ ride, onEdit, onChanged }: Props) {
 
           <Pressable
             onPress={confirmDelete}
-            className="px-2 py-1 rounded-lg border border-red-600"
+            className="px-2 py-1 rounded-lg border border-red-600 flex-row items-center gap-1"
           >
-            <Text className="text-red-600">Excluir</Text>
+            <Ionicons name="trash-outline" size={14} color="#DC2626" />
+            <Text className="text-red-600 text-sm">Excluir</Text>
           </Pressable>
         </View>
       </View>
 
+      {/* Linha de horário / duração */}
+      {hasTime && (
+        <Text className="text-[11px] text-slate-500 mb-1">
+          {formatTime(ride.startedAt!)} – {formatTime(ride.endedAt!)}
+          {dur > 0 && ` • ${dur} min`}
+        </Text>
+      )}
+
+      {/* Linha principal: km + valor */}
       <Text className="text-base">
         <Text className="font-semibold">{ride.kmRodado.toFixed(2)} km</Text>
         <Text> • </Text>

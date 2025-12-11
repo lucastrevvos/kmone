@@ -7,6 +7,10 @@ export interface Ride {
   receitaBruta: number;
   app: AppFonte;
   obs?: string;
+
+  startedAt?: string;
+  endedAt?: string;
+  durationMinutes?: number;
 }
 
 export interface FuelToUp {

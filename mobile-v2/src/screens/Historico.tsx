@@ -128,6 +128,18 @@ export default function Historico() {
   const isToday = dateISO === todayLocalISO();
   const totalRides = rides.length;
 
+  // 🔹 total de minutos em corrida no dia (igual à Home)
+  const totalMinutes = rides.reduce(
+    (sum, r) => sum + (r.durationMinutes ?? 0),
+    0,
+  );
+  const horas = Math.floor(totalMinutes / 60);
+  const minutos = totalMinutes % 60;
+  const horasFormatadas =
+    totalMinutes === 0
+      ? "0h"
+      : `${horas}h ${minutos.toString().padStart(2, "0")}min`;
+
   async function onExport() {
     if (rides.length === 0) {
       Alert.alert("Nada para exportar", "Não há corridas neste dia.");
@@ -159,6 +171,17 @@ export default function Historico() {
       return;
     }
     await exportRangeCsv(`mes-${start.slice(0, 7)}`, data); // YYYY-MM
+  }
+
+  // 🔹 delete via repo aqui (Histórico não tem undo, então é direto)
+  async function handleDeleted(ride: Ride) {
+    try {
+      await rideRepo.remove(ride.id, ride.dataISO);
+      await load();
+    } catch (e) {
+      console.error("[Historico] erro ao remover:", e);
+      Alert.alert("Erro", "Não foi possível excluir a corrida.");
+    }
   }
 
   return (
@@ -255,7 +278,9 @@ export default function Historico() {
             <Row label="Km" value={`${km.toFixed(2)} km`} />
             <Row label="Combustível" value={money(fuelDay)} />
             <Row label="Líquido" value={money(liquido)} />
-            <Row label="Total de Corridas" value={String(totalRides)} />
+            <Row label="Total de corridas" value={String(totalRides)} />
+            {/* 🔹 novo: horas trabalhadas nesse dia */}
+            <Row label="Horas em corrida" value={horasFormatadas} />
           </View>
         </View>
 
@@ -267,6 +292,7 @@ export default function Historico() {
               ride={r}
               onEdit={setEditing}
               onChanged={load}
+              onDeleted={handleDeleted} // 👈 agora delete funciona aqui também
             />
           ))}
           {!loading && rides.length === 0 && (

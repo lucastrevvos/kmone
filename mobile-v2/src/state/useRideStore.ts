@@ -10,12 +10,14 @@ type S = {
   rides: Ride[];
   loading: boolean;
 
-  // NOVO
+  // controle de desfazer
   lastDeleted: Ride | null;
   removeRide: (ride: Ride) => Promise<void>;
   undoLastDelete: () => Promise<void>;
 
   loadToday(): Promise<void>;
+
+  // 🔧 agora só omitimos o id; dataISO pode vir de fora
   addRide(input: Omit<Ride, "id" | "dataISO">): Promise<void>;
 };
 
@@ -35,12 +37,17 @@ export const useRideStore = create<S>((set, get) => ({
 
   async addRide(input) {
     const id = Math.random().toString(36).slice(2);
-    const dataISO = get().dateISO;
-    await createRide(rideRepo)({ id, ...input, dataISO });
+    const dataISO = get().dateISO; // ex: "2025-12-11"
+
+    await createRide(rideRepo)({
+      id,
+      ...input,
+      dataISO,
+    });
+
     await get().loadToday();
   },
-
-  // NOVO: remove + guarda p/ desfazer
+  // remove + guarda p/ desfazer
   async removeRide(ride) {
     set({ loading: true });
     try {
@@ -52,7 +59,7 @@ export const useRideStore = create<S>((set, get) => ({
     }
   },
 
-  // NOVO: desfazer
+  // desfazer
   async undoLastDelete() {
     const last = get().lastDeleted;
     if (!last) return;
