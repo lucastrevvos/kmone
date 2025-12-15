@@ -32,9 +32,17 @@ export function Layout() {
 
   return (
     <div className="w-screen min-h-screen bg-[var(--color-bg)] flex flex-col items-center text-[var(--color-default)]">
-      <header className="w-full max-w-screen-lg px-4 py-6">
-        <img src={logo} alt="logo" className="w-40 mx-auto md:mx-0"></img>
+      <header className="w-full max-w-screen-lg px-4 py-6 flex items-center gap-3">
+        <img src={logo} alt="KM One logo" className="w-28  h-20" />
+
+        <div className="flex flex-col leading-tight">
+          <span className="text-xl font-bold tracking-wide">KM ONE</span>
+          <span className="text-sm text-gray-500">
+            Trevvos · Com você a cada KM
+          </span>
+        </div>
       </header>
+
       <main className="w-full max-w-screen-lg px-4 flex-1">
         <Outlet />
       </main>
