@@ -42,7 +42,11 @@ export function Home() {
         </div>
 
         <div className="flex justify-center">
-          <img src={appOnmobile} alt="App KM one no celular" className="w-64" />
+          <img
+            src={appOnmobile}
+            alt="App KM one no celular"
+            className="w-104"
+          />
         </div>
       </section>
 
