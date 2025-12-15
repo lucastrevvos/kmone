@@ -370,10 +370,11 @@ export default function Home() {
                 {settings.metaMinRSKm.toFixed(2)}
               </Text>
             </View>
-            <View className="flex-row justify-between">
+            {/* <View className="flex-row justify-between">
               <Text>Horas em corrida</Text>
               <Text className="font-semibold">{horasFormatadas}</Text>
             </View>
+            */}
           </View>
         </View>
 

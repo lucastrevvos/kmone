@@ -280,7 +280,7 @@ export default function Historico() {
             <Row label="Líquido" value={money(liquido)} />
             <Row label="Total de corridas" value={String(totalRides)} />
             {/* 🔹 novo: horas trabalhadas nesse dia */}
-            <Row label="Horas em corrida" value={horasFormatadas} />
+            {/*<Row label="Horas em corrida" value={horasFormatadas} /> */}
           </View>
         </View>
 

@@ -1,1 +1,3 @@
 npx eas build -p android --profile preview
+
+npx eas build -p android --profile production
