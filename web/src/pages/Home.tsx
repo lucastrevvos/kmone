@@ -50,6 +50,32 @@ export function Home() {
         </div>
       </section>
 
+      <section className="mt-16 grid md:grid-cols-2 gap-12 items-center">
+        <div className="text-center md:text-left">
+          <h2 className="text-3xl font-bold mb-4">
+            Você sabe quanto realmente sobra no seu bolso no fim do dia?
+          </h2>
+          <p className="text-lg text-gray-600">
+            O app de corrida mostra o bruto. A gasolina, o desgaste e o tempo
+            parado contam outra história. Esse vídeo é o motivo de eu ter criado
+            o KM One e estar chamando motoristas pra testar comigo.
+          </p>
+        </div>
+
+        <div className="flex justify-center">
+          <div className="w-full max-w-[380px] aspect-[9/16] rounded-2xl overflow-hidden shadow">
+            <iframe
+              className="w-full h-full"
+              src="https://www.youtube.com/embed/Ky35R2GY8fg"
+              title="Manifesto KM One"
+              frameBorder="0"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowFullScreen
+            />
+          </div>
+        </div>
+      </section>
+
       <section className="bg-[var(--secundary)] p-8 rounded shadow text-center space-y-6 mt-15">
         <h2 className="text-3xl font-bold">
           Quer ser um dos primeiros a testar o KM One ?
