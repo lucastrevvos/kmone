@@ -1,13 +1,21 @@
 import { useEffect, useRef, useState } from "react";
-import { View, Text, TextInput, Pressable, ScrollView } from "react-native";
-import { useFuelStore } from "@state/useFuelStore";
-import type { Fuel } from "@core/infra/asyncStorageRepos";
-import { fuelRepo } from "@core/infra/asyncStorageRepos";
-import FuelItem from "src/components/FuelItem";
-import FuelEditModal from "src/components/FuelEditModal";
+import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 
-const ACCENT = "#10B981"; // Trevvos
-const ACCENT_DARK = "#059669";
+import { useFuelStore } from "@state/useFuelStore";
+import { fuelRepo } from "@core/infra/asyncStorageRepos";
+import type { Fuel } from "@core/infra/asyncStorageRepos";
+import { money } from "@utils/format";
+import EmptyState from "src/components/EmptyState";
+import FieldCard from "src/components/FieldCard";
+import FuelEditModal from "src/components/FuelEditModal";
+import FuelItem from "src/components/FuelItem";
+import MetricCard from "src/components/MetricCard";
+import ScreenHero from "src/components/ScreenHero";
+import SectionHeader from "src/components/SectionHeader";
+
+const ACCENT = "#10B981";
+const ACCENT_DARK = "#065F46";
 
 export default function Abastecer() {
   const { fuels, loadToday, addFuel, loading } = useFuelStore();
@@ -17,10 +25,7 @@ export default function Abastecer() {
   const [tipo, setTipo] = useState<
     "gasolina" | "etanol" | "diesel" | undefined
   >(undefined);
-
   const [editing, setEditing] = useState<Fuel | null>(null);
-
-  // undo
   const [lastDeleted, setLastDeleted] = useState<Fuel | null>(null);
   const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -31,19 +36,22 @@ export default function Abastecer() {
     };
   }, []);
 
+  const totalFuel = fuels.reduce((sum, fuel) => sum + fuel.valor, 0);
+  const totalLiters = fuels.reduce((sum, fuel) => sum + (fuel.litros ?? 0), 0);
+
   async function salvar() {
     const v = Number(valor.replace(",", "."));
     const l = litros ? Number(litros.replace(",", ".")) : undefined;
     if (!v || v <= 0) return;
+
     await addFuel({ valor: v, litros: l, tipo });
     setValor("");
     setLitros("");
     setTipo(undefined);
   }
 
-  // chamado pelo FuelItem após excluir
-  async function handleDeleted(f: Fuel) {
-    setLastDeleted(f);
+  async function handleDeleted(fuel: Fuel) {
+    setLastDeleted(fuel);
     if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
     undoTimerRef.current = setTimeout(() => setLastDeleted(null), 3500);
   }
@@ -57,129 +65,155 @@ export default function Abastecer() {
   }
 
   return (
-    <ScrollView className="flex-1 bg-white">
-      <View className="p-6 gap-6">
-        {/* Header */}
-        <View className="flex-row items-end justify-between">
-          <View>
-            <Text className="text-2xl font-bold">Abastecimento</Text>
-            <Text className="text-xs text-slate-500">
-              Registre custos do dia
-            </Text>
+    <ScrollView className="flex-1 bg-slate-50" showsVerticalScrollIndicator={false}>
+      <View className="px-5 pb-10 pt-5">
+        <ScreenHero
+          eyebrow="Controle de custo"
+          title="Abastecimento"
+          description="Registre abastecimentos para medir o custo real do seu dia."
+          badge={`${fuels.length} lanc.`}
+          backgroundColor={ACCENT_DARK}
+          eyebrowColor="#BBF7D0"
+          descriptionColor="#D1FAE5"
+        />
+        <View
+          className="mt-4 rounded-[24px] px-5 py-5"
+          style={{ backgroundColor: ACCENT_DARK }}
+        >
+          <View className="mt-5 flex-row flex-wrap justify-between">
+            <MetricCard
+              label="Total abastecido"
+              value={money(totalFuel)}
+              note="Hoje"
+              variant="dark"
+            />
+            <MetricCard
+              label="Litros"
+              value={`${totalLiters.toFixed(1)} L`}
+              note="Acumulado"
+              variant="dark"
+            />
           </View>
         </View>
 
-        {/* Card do formulário */}
-        <View className="rounded-3xl border border-slate-200 p-5 gap-5">
-          {/* Valor */}
-          <View>
-            <Text className="mb-2 text-slate-600">Valor</Text>
-            <View className="flex-row items-center rounded-2xl border border-slate-300 px-4 py-3">
-              <Text className="text-base text-slate-500 mr-2">R$</Text>
+        <View
+          className="mt-6 rounded-[28px] border border-slate-200 p-5"
+          style={{ backgroundColor: "#FFFFFF" }}
+        >
+          <SectionHeader
+            eyebrow="Novo registro"
+            title="Lancar abastecimento"
+            rightSlot={<Ionicons name="water-outline" size={20} color="#0F172A" />}
+          />
+
+          <FieldCard label="Valor">
+            <View className="flex-row items-center rounded-[22px] border border-slate-300 px-4 py-3">
+              <Text className="mr-2 text-base text-slate-500">R$</Text>
               <TextInput
                 keyboardType="numeric"
                 value={valor}
                 onChangeText={setValor}
                 placeholder="0,00"
-                className="flex-1 text-2xl font-semibold"
+                className="flex-1 text-2xl font-bold text-slate-900"
                 editable={!loading}
               />
             </View>
-          </View>
+          </FieldCard>
 
-          {/* Litros (opcional) */}
-          <View>
-            <Text className="mb-2 text-slate-600">Litros (opcional)</Text>
-            <View className="flex-row items-center rounded-2xl border border-slate-300 px-4 py-3">
+          <FieldCard label="Litros (opcional)">
+            <View className="flex-row items-center rounded-[22px] border border-slate-300 px-4 py-3">
               <TextInput
                 keyboardType="numeric"
                 value={litros}
                 onChangeText={setLitros}
                 placeholder="0,0"
-                className="flex-1 text-xl"
+                className="flex-1 text-lg font-semibold text-slate-900"
                 editable={!loading}
               />
-              <Text className="text-base text-slate-500 ml-2">L</Text>
+              <Text className="ml-2 text-base text-slate-500">L</Text>
             </View>
-          </View>
+          </FieldCard>
 
-          {/* Chips de tipo */}
-          <View className="flex-row gap-3">
-            {(["gasolina", "etanol", "diesel"] as const).map((opt) => {
-              const active = tipo === opt;
+          <View className="mt-4 flex-row gap-3">
+            {(["gasolina", "etanol", "diesel"] as const).map((option) => {
+              const active = tipo === option;
               return (
                 <Pressable
-                  key={opt}
-                  onPress={() => setTipo(opt)}
-                  className={`px-4 py-3 rounded-2xl border ${
-                    active ? "" : "bg-white border-slate-300"
-                  }`}
+                  key={option}
+                  onPress={() => setTipo(option)}
+                  className="flex-1 rounded-2xl px-3 py-3"
                   style={{
-                    backgroundColor: active ? ACCENT : "white",
+                    backgroundColor: active ? ACCENT : "#FFFFFF",
+                    borderWidth: 1,
                     borderColor: active ? ACCENT : "#CBD5E1",
-                    shadowColor: active ? ACCENT : "#000",
-                    shadowOpacity: active ? 0.25 : 0.08,
-                    shadowRadius: active ? 6 : 4,
-                    elevation: active ? 3 : 1,
                   }}
                 >
                   <Text
-                    className={`font-medium ${
-                      active ? "text-white" : "text-black"
+                    className={`text-center font-semibold ${
+                      active ? "text-white" : "text-slate-700"
                     }`}
                   >
-                    {opt}
+                    {option}
                   </Text>
                 </Pressable>
               );
             })}
           </View>
 
-          {/* Botão salvar */}
           <Pressable
             onPress={salvar}
             disabled={loading}
-            className="flex-row items-center justify-center rounded-2xl px-5 py-4 active:opacity-90"
-            style={{ backgroundColor: loading ? ACCENT_DARK : ACCENT }}
+            className="mt-5 flex-row items-center justify-center rounded-2xl px-5 py-4"
+            style={{ backgroundColor: loading ? ACCENT : ACCENT_DARK }}
           >
-            <Text className="text-white text-lg font-semibold">
-              {loading ? "Salvando..." : "Salvar"}
+            <Ionicons name="add-circle-outline" size={18} color="#FFFFFF" />
+            <Text className="ml-2 text-base font-semibold text-white">
+              {loading ? "Salvando..." : "Salvar abastecimento"}
             </Text>
           </Pressable>
         </View>
 
-        {/* Lista do dia */}
-        <View className="gap-2">
-          {fuels.map((f) => (
-            <FuelItem
-              key={f.id}
-              fuel={f}
-              onEdit={setEditing}
-              onChanged={loadToday}
-              onDeleted={handleDeleted}
-            />
-          ))}
-          {fuels.length === 0 && (
-            <Text className="text-slate-500">Sem abastecimentos hoje.</Text>
-          )}
+        <View className="mt-6">
+          <SectionHeader eyebrow="Registros do dia" title="Abastecimentos" />
+
+          <View className="mt-4 gap-3">
+            {fuels.map((fuel) => (
+              <FuelItem
+                key={fuel.id}
+                fuel={fuel}
+                onEdit={setEditing}
+                onChanged={loadToday}
+                onDeleted={handleDeleted}
+              />
+            ))}
+
+            {fuels.length === 0 && (
+              <EmptyState
+                icon="car-outline"
+                title="Nenhum abastecimento hoje"
+                description="Registre seus custos para acompanhar melhor o resultado liquido do dia."
+              />
+            )}
+          </View>
         </View>
 
-        {/* Snackbar de undo */}
         {lastDeleted && (
-          <View className="mt-2 flex-row items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3">
-            <Text>Abastecimento removido.</Text>
+          <View
+            className="mt-5 flex-row items-center justify-between rounded-2xl border px-4 py-3"
+            style={{ backgroundColor: "#FFFFFF", borderColor: "#E2E8F0" }}
+          >
+            <Text className="text-slate-700">Abastecimento removido.</Text>
             <Pressable
               onPress={undoDelete}
-              className="px-3 py-1 rounded-lg border"
-              style={{ borderColor: ACCENT }}
+              className="rounded-xl px-3 py-2"
+              style={{ backgroundColor: "#E8FFF5" }}
             >
-              <Text style={{ color: ACCENT, fontWeight: "600" }}>Desfazer</Text>
+              <Text className="font-semibold text-emerald-800">Desfazer</Text>
             </Pressable>
           </View>
         )}
       </View>
 
-      {/* Modal */}
       <FuelEditModal
         visible={!!editing}
         fuel={editing}

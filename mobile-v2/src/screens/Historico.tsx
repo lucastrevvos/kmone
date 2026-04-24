@@ -1,71 +1,75 @@
 import { useEffect, useState } from "react";
 import {
-  View,
-  Text,
-  Pressable,
-  ScrollView,
-  RefreshControl,
   Alert,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  Text,
+  View,
 } from "react-native";
-import { listRidesByDate } from "@core/usecases/listRidesByDate";
-import { rideRepo, fuelRepo } from "@core/infra/asyncStorageRepos";
-import { money, todayLocalISO } from "@utils/format";
 import { Ionicons } from "@expo/vector-icons";
-import type { Ride } from "@core/domain/types";
-import RideEditModal from "src/components/RideEditModal";
-import RideItem from "src/components/RideItem";
-import { exportDayCsv } from "src/features/export/exportDayCsv";
-
-// para export por intervalo (sem criar arquivo novo)
 import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
+
+import { listRidesByDate } from "@core/usecases/listRidesByDate";
+import { fuelRepo, rideRepo } from "@core/infra/asyncStorageRepos";
+import type { Ride } from "@core/domain/types";
 import { ridesToCSV } from "@utils/csv";
+import { money, todayLocalISO } from "@utils/format";
+import EmptyState from "src/components/EmptyState";
+import { exportDayCsv } from "src/features/export/exportDayCsv";
+import MetricCard from "src/components/MetricCard";
+import RideEditModal from "src/components/RideEditModal";
+import RideItem from "src/components/RideItem";
+import ScreenHero from "src/components/ScreenHero";
+import SectionHeader from "src/components/SectionHeader";
 
 const ACCENT = "#10B981";
 
-/** Helpers locais de data (ISO local YYYY-MM-DD) */
-function fmtLocalISO(d: Date) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
+function fmtLocalISO(date: Date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
 }
+
 function addDaysLocal(dateISO: string, delta: number) {
   const [y, m, d] = dateISO.split("-").map(Number);
   const base = new Date(y, m - 1, d, 12, 0, 0, 0);
   base.setDate(base.getDate() + delta);
   return fmtLocalISO(base);
 }
+
 function weekRangeMonday(iso: string) {
   const [y, m, d] = iso.split("-").map(Number);
   const base = new Date(y, (m || 1) - 1, d || 1, 12);
-  // getDay(): 0=Dom … 6=Sáb ; vamos usar segunda como início
-  const wd = (base.getDay() + 6) % 7; // 0 = segunda
+  const wd = (base.getDay() + 6) % 7;
   const start = addDaysLocal(fmtLocalISO(base), -wd);
   const end = addDaysLocal(start, 6);
   return { start, end };
 }
+
 function monthRange(iso: string) {
   const [y, m] = iso.split("-").map(Number);
   const first = new Date(y, (m || 1) - 1, 1, 12);
   const last = new Date(y, m || 1, 0, 12);
   return { start: fmtLocalISO(first), end: fmtLocalISO(last) };
 }
+
 function* eachDay(startISO: string, endISO: string) {
-  let cur = startISO;
-  while (cur <= endISO) {
-    yield cur;
-    cur = addDaysLocal(cur, 1);
+  let current = startISO;
+  while (current <= endISO) {
+    yield current;
+    current = addDaysLocal(current, 1);
   }
 }
 
-/** Export CSV por intervalo (inline) */
 async function exportRangeCsv(label: string, rides: Ride[]) {
   const csv = ridesToCSV(rides);
   const safe = label.replace(/[^\w-]+/g, "_");
-  const filename = `kmone-rides-${safe}.csv`;
+  const fileName = `kmone-rides-${safe}.csv`;
   const dir = FileSystem.documentDirectory ?? FileSystem.cacheDirectory ?? "";
-  const uri = `${dir}${filename}`;
+  const uri = `${dir}${fileName}`;
 
   await FileSystem.writeAsStringAsync(uri, csv, {
     encoding: FileSystem.EncodingType.UTF8,
@@ -80,14 +84,11 @@ async function exportRangeCsv(label: string, rides: Ride[]) {
   } else {
     console.log("CSV salvo em:", uri);
   }
+
   return uri;
 }
 
-/** Busca corridas num intervalo sem mudar a infra existente */
-async function listRidesRange(
-  startISO: string,
-  endISO: string,
-): Promise<Ride[]> {
+async function listRidesRange(startISO: string, endISO: string): Promise<Ride[]> {
   const all: Ride[] = [];
   for (const day of eachDay(startISO, endISO)) {
     const list = await rideRepo.listByDate(day);
@@ -101,8 +102,6 @@ export default function Historico() {
   const [rides, setRides] = useState<Ride[]>([]);
   const [loading, setLoading] = useState(false);
   const [editing, setEditing] = useState<Ride | null>(null);
-
-  // novo: combustível do dia
   const [fuelDay, setFuelDay] = useState(0);
 
   async function load() {
@@ -113,43 +112,34 @@ export default function Historico() {
       setRides(list);
 
       const fuels = await fuelRepo.listByDate(dateISO);
-      setFuelDay(fuels.reduce((s, f) => s + f.valor, 0));
+      setFuelDay(fuels.reduce((sum, fuel) => sum + fuel.valor, 0));
     } finally {
       setLoading(false);
     }
   }
+
   useEffect(() => {
     load();
   }, [dateISO]);
 
-  const total = rides.reduce((s, r) => s + r.receitaBruta, 0);
-  const km = rides.reduce((s, r) => s + r.kmRodado, 0);
+  const total = rides.reduce((sum, ride) => sum + ride.receitaBruta, 0);
+  const km = rides.reduce((sum, ride) => sum + ride.kmRodado, 0);
   const liquido = total - fuelDay;
-  const isToday = dateISO === todayLocalISO();
+  const rsPorKm = km > 0 ? total / km : 0;
   const totalRides = rides.length;
+  const isToday = dateISO === todayLocalISO();
 
-  // 🔹 total de minutos em corrida no dia (igual à Home)
-  const totalMinutes = rides.reduce(
-    (sum, r) => sum + (r.durationMinutes ?? 0),
-    0,
-  );
-  const horas = Math.floor(totalMinutes / 60);
-  const minutos = totalMinutes % 60;
-  const horasFormatadas =
-    totalMinutes === 0
-      ? "0h"
-      : `${horas}h ${minutos.toString().padStart(2, "0")}min`;
-
-  async function onExport() {
+  async function onExportDay() {
     if (rides.length === 0) {
-      Alert.alert("Nada para exportar", "Não há corridas neste dia.");
+      Alert.alert("Nada para exportar", "Nao ha corridas neste dia.");
       return;
     }
+
     try {
       await exportDayCsv(dateISO, rides);
-    } catch (e) {
-      console.error("export csv", e);
-      Alert.alert("Erro", "Não foi possível exportar o CSV.");
+    } catch (error) {
+      console.error("export csv", error);
+      Alert.alert("Erro", "Nao foi possivel exportar o CSV.");
     }
   }
 
@@ -157,9 +147,10 @@ export default function Historico() {
     const { start, end } = weekRangeMonday(dateISO);
     const data = await listRidesRange(start, end);
     if (!data.length) {
-      Alert.alert("Nada para exportar", "Não há corridas nesta semana.");
+      Alert.alert("Nada para exportar", "Nao ha corridas nesta semana.");
       return;
     }
+
     await exportRangeCsv(`semana-${start}_a_${end}`, data);
   }
 
@@ -167,142 +158,134 @@ export default function Historico() {
     const { start, end } = monthRange(dateISO);
     const data = await listRidesRange(start, end);
     if (!data.length) {
-      Alert.alert("Nada para exportar", "Não há corridas neste mês.");
+      Alert.alert("Nada para exportar", "Nao ha corridas neste mes.");
       return;
     }
-    await exportRangeCsv(`mes-${start.slice(0, 7)}`, data); // YYYY-MM
+
+    await exportRangeCsv(`mes-${start.slice(0, 7)}`, data);
   }
 
-  // 🔹 delete via repo aqui (Histórico não tem undo, então é direto)
   async function handleDeleted(ride: Ride) {
     try {
       await rideRepo.remove(ride.id, ride.dataISO);
       await load();
-    } catch (e) {
-      console.error("[Historico] erro ao remover:", e);
-      Alert.alert("Erro", "Não foi possível excluir a corrida.");
+    } catch (error) {
+      console.error("[Historico] erro ao remover:", error);
+      Alert.alert("Erro", "Nao foi possivel excluir a corrida.");
     }
   }
 
   return (
     <ScrollView
-      className="flex-1 bg-white"
+      className="flex-1 bg-slate-50"
       refreshControl={<RefreshControl refreshing={loading} onRefresh={load} />}
-      contentContainerClassName="p-5"
+      showsVerticalScrollIndicator={false}
     >
-      <View className="gap-4">
-        <View className="flex-row items-center justify-between">
-          <Text className="text-2xl font-bold">Histórico</Text>
+      <View className="px-5 pb-10 pt-5">
+        <ScreenHero
+          eyebrow="Analise operacional"
+          title="Historico"
+          description="Revise desempenho, compare datas e exporte o periodo que precisa."
+          badge={`${totalRides} corridas`}
+          backgroundColor="#0F172A"
+        />
+        <View
+          className="mt-4 rounded-[24px] px-5 py-5"
+          style={{ backgroundColor: "#0F172A" }}
+        >
+          <View className="mt-5 rounded-[24px] bg-white/5 p-4">
+            <View className="flex-row items-center justify-between">
+              <Pressable
+                onPress={() => setDateISO(addDaysLocal(dateISO, -1))}
+                className="h-11 w-11 items-center justify-center rounded-full bg-white/10"
+              >
+                <Ionicons name="chevron-back" size={18} color="#FFFFFF" />
+              </Pressable>
 
-          <View className="flex-row gap-2">
-            <Pressable
-              onPress={onExportWeek}
-              className="flex-row items-center gap-1 rounded-full px-3 py-2"
-              style={{ backgroundColor: "#0EA5E9" }}
-            >
-              <Ionicons name="share-outline" size={16} color="#fff" />
-              <Text className="text-white font-semibold">Semana</Text>
-            </Pressable>
+              <View className="items-center">
+                <Text className="text-lg font-bold text-white">{dateISO}</Text>
+                <Text className="mt-1 text-xs text-slate-300">
+                  {isToday ? "Hoje" : "Periodo selecionado"}
+                </Text>
+              </View>
 
-            <Pressable
-              onPress={onExportMonth}
-              className="flex-row items-center gap-1 rounded-full px-3 py-2"
-              style={{ backgroundColor: "#10B981" }}
-            >
-              <Ionicons name="share-outline" size={16} color="#fff" />
-              <Text className="text-white font-semibold">Mês</Text>
-            </Pressable>
+              <Pressable
+                onPress={() => setDateISO(addDaysLocal(dateISO, 1))}
+                className="h-11 w-11 items-center justify-center rounded-full bg-white/10"
+              >
+                <Ionicons name="chevron-forward" size={18} color="#FFFFFF" />
+              </Pressable>
+            </View>
 
-            <Pressable
-              onPress={onExport}
-              className="flex-row items-center gap-1 rounded-full px-3 py-2"
-              style={{ backgroundColor: ACCENT }}
-            >
-              <Ionicons name="share-outline" size={16} color="#fff" />
-              <Text className="text-white font-semibold">Dia</Text>
-            </Pressable>
-          </View>
-        </View>
-
-        {/* Navegação por data */}
-        <View className="flex-row items-center justify-between">
-          <Pressable
-            onPress={() => setDateISO(addDaysLocal(dateISO, -1))}
-            className="rounded-full"
-            style={{
-              backgroundColor: ACCENT,
-              paddingHorizontal: 14,
-              paddingVertical: 10,
-              elevation: 2,
-            }}
-          >
-            <Ionicons name="chevron-back" size={18} color="#fff" />
-          </Pressable>
-
-          <View className="items-center">
-            <Text className="font-semibold">{dateISO}</Text>
             {!isToday && (
               <Pressable
                 onPress={() => setDateISO(todayLocalISO())}
-                className="mt-1 rounded-full border px-3 py-1"
-                style={{ borderColor: ACCENT }}
+                className="mt-4 self-center rounded-full px-4 py-2"
+                style={{ backgroundColor: "#E8FFF5" }}
               >
-                <Text
-                  style={{ color: ACCENT, fontSize: 12, fontWeight: "600" }}
-                >
-                  Hoje
-                </Text>
+                <Text className="font-semibold text-emerald-800">Voltar para hoje</Text>
               </Pressable>
             )}
           </View>
-
-          <Pressable
-            onPress={() => setDateISO(addDaysLocal(dateISO, +1))}
-            className="rounded-full"
-            style={{
-              backgroundColor: ACCENT,
-              paddingHorizontal: 14,
-              paddingVertical: 10,
-              elevation: 2,
-            }}
-          >
-            <Ionicons name="chevron-forward" size={18} color="#fff" />
-          </Pressable>
         </View>
 
-        {/* Resumo */}
-        <View className="rounded-3xl border border-slate-200 p-4">
-          <Text className="text-slate-500 mb-2">Resumo</Text>
-          <View className="gap-2">
-            <Row label="Bruto" value={money(total)} />
-            <Row label="Km" value={`${km.toFixed(2)} km`} />
-            <Row label="Combustível" value={money(fuelDay)} />
-            <Row label="Líquido" value={money(liquido)} />
-            <Row label="Total de corridas" value={String(totalRides)} />
-            {/* 🔹 novo: horas trabalhadas nesse dia */}
-            {/*<Row label="Horas em corrida" value={horasFormatadas} /> */}
+        <View className="mt-6">
+          <SectionHeader eyebrow="Resumo do periodo" title="Indicadores" />
+
+          <View className="mt-4 flex-row flex-wrap justify-between">
+            <MetricCard label="Bruto" value={money(total)} note={`${totalRides} corridas`} />
+            <MetricCard label="Km" value={`${km.toFixed(2)} km`} note={`${rsPorKm.toFixed(2)} R$/km`} />
+            <MetricCard label="Combustivel" value={money(fuelDay)} note="Custo do dia" />
+            <MetricCard
+              label="Liquido"
+              value={money(liquido)}
+              note={liquido >= 0 ? "Saldo positivo" : "Saldo negativo"}
+              emphasis={liquido >= 0 ? "success" : "warning"}
+            />
           </View>
         </View>
 
-        {/* Lista */}
-        <View className="gap-2">
-          {rides.map((r) => (
-            <RideItem
-              key={r.id}
-              ride={r}
-              onEdit={setEditing}
-              onChanged={load}
-              onDeleted={handleDeleted} // 👈 agora delete funciona aqui também
-            />
-          ))}
-          {!loading && rides.length === 0 && (
-            <View className="items-center py-10">
-              <Ionicons name="trail-sign-outline" size={28} color="#94A3B8" />
-              <Text className="text-slate-500 mt-2">
-                Sem corridas neste dia.
-              </Text>
-            </View>
-          )}
+        <View
+          className="mt-6 rounded-[28px] border border-slate-200 p-5"
+          style={{ backgroundColor: "#FFFFFF" }}
+        >
+          <SectionHeader
+            eyebrow="Exportacao"
+            title="Compartilhe os registros"
+            rightSlot={
+              <Ionicons name="share-social-outline" size={20} color="#0F172A" />
+            }
+          />
+
+          <View className="mt-4 flex-row gap-3">
+            <ExportButton label="Dia" color="#0F766E" onPress={onExportDay} />
+            <ExportButton label="Semana" color="#0284C7" onPress={onExportWeek} />
+            <ExportButton label="Mes" color="#16A34A" onPress={onExportMonth} />
+          </View>
+        </View>
+
+        <View className="mt-6">
+          <SectionHeader eyebrow="Lista detalhada" title="Corridas registradas" />
+
+          <View className="mt-4 gap-3">
+            {rides.map((ride) => (
+              <RideItem
+                key={ride.id}
+                ride={ride}
+                onEdit={setEditing}
+                onChanged={load}
+                onDeleted={handleDeleted}
+              />
+            ))}
+
+            {!loading && rides.length === 0 && (
+              <EmptyState
+                icon="calendar-clear-outline"
+                title="Nenhuma corrida neste dia"
+                description="Troque a data ou registre novas corridas para comparar desempenho."
+              />
+            )}
+          </View>
         </View>
       </View>
 
@@ -318,11 +301,23 @@ export default function Historico() {
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+function ExportButton({
+  label,
+  color,
+  onPress,
+}: {
+  label: string;
+  color: string;
+  onPress: () => void;
+}) {
   return (
-    <View className="flex-row justify-between">
-      <Text className="text-slate-700">{label}</Text>
-      <Text className="font-semibold">{value}</Text>
-    </View>
+    <Pressable
+      onPress={onPress}
+      className="flex-1 flex-row items-center justify-center rounded-2xl px-3 py-4"
+      style={{ backgroundColor: color }}
+    >
+      <Ionicons name="share-outline" size={16} color="#FFFFFF" />
+      <Text className="ml-2 font-semibold text-white">{label}</Text>
+    </Pressable>
   );
 }

@@ -1,6 +1,10 @@
 import { create } from "zustand";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { ExpoGpsPort, setBackgroundPointHandler } from "@core/infra/expoGps";
+import {
+  ExpoGpsPort,
+  TrackingStartError,
+  setBackgroundPointHandler,
+} from "@core/infra/expoGps";
 import type { AppFonte } from "@core/domain/types";
 
 const TRACKING_KEY = "@kmone:tracking-session";
@@ -13,8 +17,8 @@ function haversine(
   const R = 6371000;
   const dLat = toRad(b.lat - a.lat);
   const dLon = toRad(b.lon - a.lon);
-  const la1 = toRad(a.lat),
-    la2 = toRad(b.lat);
+  const la1 = toRad(a.lat);
+  const la2 = toRad(b.lat);
   const h =
     Math.sin(dLat / 2) ** 2 +
     Math.cos(la1) * Math.cos(la2) * Math.sin(dLon / 2) ** 2;
@@ -49,14 +53,11 @@ type TrackState = {
 const gps = ExpoGpsPort();
 
 export const useTrackingStore = create<TrackState>((set, get) => {
-  // 👇 Função única para aplicar ponto + persistir estado
   const applyPoint = (p: TrackPoint) => {
     const s = get();
 
-    // filtra leituras ruins
     if (p.accuracy && p.accuracy > 50) return;
 
-    // primeiro ponto
     if (!s.lastPoint) {
       const next = {
         ...s,
@@ -64,7 +65,6 @@ export const useTrackingStore = create<TrackState>((set, get) => {
         points: [...s.points, p],
       };
       set(next);
-      // persiste distância 0 + lastPoint
       void AsyncStorage.setItem(
         TRACKING_KEY,
         JSON.stringify({
@@ -79,7 +79,6 @@ export const useTrackingStore = create<TrackState>((set, get) => {
 
     const d = haversine(s.lastPoint, p);
 
-    // rejeita spikes bizarros
     if (d <= 0 || d >= 200) {
       const next = {
         ...s,
@@ -110,7 +109,6 @@ export const useTrackingStore = create<TrackState>((set, get) => {
 
     set(next);
 
-    // persiste distância acumulada + último ponto
     void AsyncStorage.setItem(
       TRACKING_KEY,
       JSON.stringify({
@@ -128,50 +126,60 @@ export const useTrackingStore = create<TrackState>((set, get) => {
     points: [],
 
     async startWithDraft(input) {
-      const perm = await gps.ensurePermissions();
-      if (perm !== "granted") {
-        throw new Error("Permissão de localização negada");
-      }
+      try {
+        await gps.ensurePermissions();
 
-      // cria draft completo com horário de início
-      const startedAt = new Date().toISOString();
-      const draft: DraftRide = {
-        receitaBruta: input.receitaBruta,
-        app: input.app,
-        startedAt,
-      };
+        const startedAt = new Date().toISOString();
+        const draft: DraftRide = {
+          receitaBruta: input.receitaBruta,
+          app: input.app,
+          startedAt,
+        };
 
-      // zera estado e marca como rodando
-      set({
-        running: true,
-        distanceMeters: 0,
-        lastPoint: undefined,
-        points: [],
-        draft,
-      });
-
-      // persiste início da sessão (km 0)
-      await AsyncStorage.setItem(
-        TRACKING_KEY,
-        JSON.stringify({
+        set({
           running: true,
           distanceMeters: 0,
           lastPoint: undefined,
+          points: [],
           draft,
-        }),
-      );
+        });
 
-      // Foreground watcher
-      await gps.startForeground((p) => applyPoint(p));
+        await AsyncStorage.setItem(
+          TRACKING_KEY,
+          JSON.stringify({
+            running: true,
+            distanceMeters: 0,
+            lastPoint: undefined,
+            draft,
+          }),
+        );
 
-      // Background: define handler global para o Task chamar
-      setBackgroundPointHandler((p) => {
-        if (!get().running) return;
-        applyPoint(p);
-      });
+        await gps.startForeground((p) => applyPoint(p));
 
-      // sobe o serviço em 1º plano (Android) e ativa updates de BG
-      await gps.startBackground();
+        setBackgroundPointHandler((p) => {
+          if (!get().running) return;
+          applyPoint(p);
+        });
+
+        await gps.startBackground();
+      } catch (error) {
+        await gps.stop();
+        setBackgroundPointHandler(null);
+        set({
+          running: false,
+          distanceMeters: 0,
+          lastPoint: undefined,
+          points: [],
+          draft: undefined,
+        });
+        await AsyncStorage.removeItem(TRACKING_KEY);
+
+        if (error instanceof TrackingStartError) {
+          throw error;
+        }
+
+        throw new Error("Nao foi possivel iniciar o rastreamento da corrida.");
+      }
     },
 
     async stop() {
@@ -179,7 +187,6 @@ export const useTrackingStore = create<TrackState>((set, get) => {
       setBackgroundPointHandler(null);
 
       const { distanceMeters, draft } = get();
-
       const endedAt = new Date().toISOString();
 
       const durationMinutes = draft?.startedAt
@@ -191,7 +198,6 @@ export const useTrackingStore = create<TrackState>((set, get) => {
           )
         : 0;
 
-      // limpa estado de tracking
       set({
         running: false,
         distanceMeters: 0,
@@ -200,7 +206,6 @@ export const useTrackingStore = create<TrackState>((set, get) => {
         draft: undefined,
       });
 
-      // remove rascunho persistido
       await AsyncStorage.removeItem(TRACKING_KEY);
 
       return {
@@ -211,7 +216,6 @@ export const useTrackingStore = create<TrackState>((set, get) => {
       };
     },
 
-    // 👇 chamada na inicialização do app / Home
     async restoreTrackingSession() {
       const saved = await AsyncStorage.getItem(TRACKING_KEY);
       if (!saved) return;
@@ -225,12 +229,10 @@ export const useTrackingStore = create<TrackState>((set, get) => {
         };
 
         if (!parsed.draft) {
-          // lixo antigo, limpa
           await AsyncStorage.removeItem(TRACKING_KEY);
           return;
         }
 
-        // restaura estado em memória
         set({
           running: !!parsed.running,
           distanceMeters: parsed.distanceMeters ?? 0,
@@ -239,20 +241,31 @@ export const useTrackingStore = create<TrackState>((set, get) => {
           draft: parsed.draft,
         });
 
-        // reatacha GPS se ainda estiver rodando
         if (parsed.running) {
-          const perm = await gps.ensurePermissions();
-          if (perm === "granted") {
+          try {
+            await gps.ensurePermissions();
             await gps.startForeground((p) => applyPoint(p));
             setBackgroundPointHandler((p) => {
               if (!get().running) return;
               applyPoint(p);
             });
             await gps.startBackground();
+          } catch (error) {
+            console.error("restoreTrackingSession error:", error);
+            await gps.stop();
+            setBackgroundPointHandler(null);
+            set({
+              running: false,
+              distanceMeters: 0,
+              lastPoint: undefined,
+              points: [],
+              draft: undefined,
+            });
+            await AsyncStorage.removeItem(TRACKING_KEY);
           }
         }
-      } catch (e) {
-        console.error("restoreTrackingSession error:", e);
+      } catch (error) {
+        console.error("restoreTrackingSession error:", error);
         await AsyncStorage.removeItem(TRACKING_KEY);
       }
     },

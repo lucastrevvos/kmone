@@ -31,10 +31,12 @@
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
         "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION",
         "ACCESS_BACKGROUND_LOCATION",
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
         "FOREGROUND_SERVICE",
+        "FOREGROUND_SERVICE_LOCATION",
         "ACCESS_BACKGROUND_LOCATION"
       ],
       "edgeToEdgeEnabled": true,
@@ -47,6 +49,23 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "O KM One usa sua localização para calcular os quilômetros rodados durante a corrida.",
+          "locationAlwaysAndWhenInUsePermission": "O KM One pode continuar medindo os quilômetros mesmo quando o app estiver em segundo plano.",
+          "isAndroidBackgroundLocationEnabled": true,
+          "isAndroidForegroundServiceEnabled": true
+        }
+      ],
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "O KM One usa o microfone para capturar o valor falado da corrida.",
+          "speechRecognitionPermission": "O KM One usa o reconhecimento de voz para transformar sua fala em valor da corrida.",
+          "androidSpeechServicePackages": ["com.google.android.googlequicksearchbox"]
+        }
+      ],
       [
         "expo-build-properties",
         {

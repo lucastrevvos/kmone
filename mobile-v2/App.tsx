@@ -15,7 +15,7 @@ import Historico from "./src/screens/Historico";
 import Abastecer from "./src/screens/Abastecer";
 import Configuracoes from "./src/screens/Configuracoes";
 import { Ionicons } from "@expo/vector-icons";
-import { Text } from "react-native";
+import { Text, View } from "react-native";
 
 const ACCENT = "#10B981"; // Trevvos
 
@@ -31,21 +31,30 @@ function Tabs() {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
-        header: () => <DailyGoalHeader />,
+        header: () => <DailyGoalHeader routeName={route.name} />,
+        sceneStyle: { backgroundColor: "#F8FAFC" },
         tabBarHideOnKeyboard: true,
         tabBarActiveTintColor: ACCENT,
-        tabBarInactiveTintColor: "#6b7280",
+        tabBarInactiveTintColor: "#64748B",
         tabBarStyle: {
-          borderTopColor: "#e5e7eb",
-          height: 56 + insets.bottom,
+          borderTopColor: "#E2E8F0",
+          height: 64 + insets.bottom,
           paddingBottom: Math.max(10, insets.bottom),
-          paddingTop: 6,
-          backgroundColor: "white",
+          paddingTop: 8,
+          backgroundColor: "#FFFFFF",
         },
-        tabBarItemStyle: { paddingVertical: 3 }, // hit area melhor
+        tabBarItemStyle: {
+          paddingVertical: 2,
+        },
+        tabBarLabelPosition: "below-icon",
         tabBarLabel: ({ color, children, focused }) => (
           <Text
-            style={{ color, fontSize: 12, fontWeight: focused ? "700" : "500" }}
+            style={{
+              color,
+              fontSize: 11,
+              fontWeight: focused ? "700" : "500",
+              marginTop: 2,
+            }}
           >
             {children}
           </Text>
@@ -69,11 +78,22 @@ function Tabs() {
           };
           const name = focused ? entry.filled : entry.outline;
           return (
-            <Ionicons
-              name={name}
-              size={focused ? size + 2 : size}
-              color={color}
-            />
+            <View
+              style={{
+                width: 36,
+                height: 28,
+                borderRadius: 12,
+                backgroundColor: focused ? "#ECFDF5" : "transparent",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Ionicons
+                name={name}
+                size={focused ? size + 1 : size}
+                color={focused ? ACCENT : color}
+              />
+            </View>
           );
         },
       })}
