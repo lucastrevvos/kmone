@@ -11,7 +11,8 @@
       "@ui/*": ["src/ui/*"],
       "@core/*": ["src/core/*"],
       "@state/*": ["src/state/*"],
-      "@utils/*": ["src/utils/*"]
+      "@utils/*": ["src/utils/*"],
+      "@features/*": ["src/features/*"]
     }
   }
 }

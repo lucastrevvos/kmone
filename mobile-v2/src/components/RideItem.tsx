@@ -27,6 +27,13 @@ export default function RideItem({
   onChanged,
   onDeleted,
 }: Props) {
+  const modeLabel =
+    ride.mode === "tracking_livre"
+      ? ride.trackingLabel ?? "Tracking livre"
+      : ride.mode === "app"
+        ? "Corrida de app"
+        : null;
+
   function confirmDelete() {
     Alert.alert(
       "Excluir corrida?",
@@ -70,17 +77,39 @@ export default function RideItem({
     >
       {/* Linha app + botões */}
       <View className="flex-row items-center justify-between mb-1">
-        <View
-          className="px-2 py-1 rounded-full"
-          style={{
-            backgroundColor: "#ECFDF5",
-            borderColor: ACCENT,
-            borderWidth: 1,
-          }}
-        >
-          <Text style={{ color: ACCENT, fontSize: 12, fontWeight: "600" }}>
-            {ride.app}
-          </Text>
+        <View className="flex-row gap-2">
+          <View
+            className="px-2 py-1 rounded-full"
+            style={{
+              backgroundColor: "#ECFDF5",
+              borderColor: ACCENT,
+              borderWidth: 1,
+            }}
+          >
+            <Text style={{ color: ACCENT, fontSize: 12, fontWeight: "600" }}>
+              {ride.app}
+            </Text>
+          </View>
+
+          {modeLabel && (
+            <View
+              className="px-2 py-1 rounded-full"
+              style={{
+                backgroundColor:
+                  ride.mode === "tracking_livre" ? "#E0F2FE" : "#FEF3C7",
+              }}
+            >
+              <Text
+                style={{
+                  color: ride.mode === "tracking_livre" ? "#075985" : "#92400E",
+                  fontSize: 12,
+                  fontWeight: "600",
+                }}
+              >
+                {modeLabel}
+              </Text>
+            </View>
+          )}
         </View>
 
         <View className="flex-row gap-2">

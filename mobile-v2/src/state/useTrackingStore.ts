@@ -5,7 +5,7 @@ import {
   TrackingStartError,
   setBackgroundPointHandler,
 } from "@core/infra/expoGps";
-import type { AppFonte } from "@core/domain/types";
+import type { AppFonte, FreeTrackingLabel } from "@core/domain/types";
 
 const TRACKING_KEY = "@kmone:tracking-session";
 
@@ -26,8 +26,16 @@ function haversine(
 }
 
 type DraftRide = {
+  kind: "ride";
   receitaBruta: number;
   app: AppFonte;
+  startedAt: string;
+};
+
+type DraftFreeTracking = {
+  kind: "free";
+  label: FreeTrackingLabel;
+  receitaBruta?: number;
   startedAt: string;
 };
 
@@ -38,12 +46,16 @@ type TrackState = {
   distanceMeters: number;
   lastPoint?: TrackPoint;
   points: TrackPoint[];
-  draft?: DraftRide;
+  draft?: DraftRide | DraftFreeTracking;
 
   startWithDraft(d: Omit<DraftRide, "startedAt">): Promise<void>;
+  startFreeTracking(
+    label: FreeTrackingLabel,
+    receitaBruta?: number,
+  ): Promise<void>;
   stop(): Promise<{
     distanceMeters: number;
-    draft?: DraftRide;
+    draft?: DraftRide | DraftFreeTracking;
     endedAt: string;
     durationMinutes: number;
   }>;
@@ -131,6 +143,7 @@ export const useTrackingStore = create<TrackState>((set, get) => {
 
         const startedAt = new Date().toISOString();
         const draft: DraftRide = {
+          kind: "ride",
           receitaBruta: input.receitaBruta,
           app: input.app,
           startedAt,
@@ -182,6 +195,64 @@ export const useTrackingStore = create<TrackState>((set, get) => {
       }
     },
 
+    async startFreeTracking(label, receitaBruta = 0) {
+      try {
+        await gps.ensurePermissions();
+
+        const startedAt = new Date().toISOString();
+        const draft: DraftFreeTracking = {
+          kind: "free",
+          label,
+          receitaBruta: Math.max(0, receitaBruta),
+          startedAt,
+        };
+
+        set({
+          running: true,
+          distanceMeters: 0,
+          lastPoint: undefined,
+          points: [],
+          draft,
+        });
+
+        await AsyncStorage.setItem(
+          TRACKING_KEY,
+          JSON.stringify({
+            running: true,
+            distanceMeters: 0,
+            lastPoint: undefined,
+            draft,
+          }),
+        );
+
+        await gps.startForeground((p) => applyPoint(p));
+
+        setBackgroundPointHandler((p) => {
+          if (!get().running) return;
+          applyPoint(p);
+        });
+
+        await gps.startBackground();
+      } catch (error) {
+        await gps.stop();
+        setBackgroundPointHandler(null);
+        set({
+          running: false,
+          distanceMeters: 0,
+          lastPoint: undefined,
+          points: [],
+          draft: undefined,
+        });
+        await AsyncStorage.removeItem(TRACKING_KEY);
+
+        if (error instanceof TrackingStartError) {
+          throw error;
+        }
+
+        throw new Error("Nao foi possivel iniciar o tracking livre.");
+      }
+    },
+
     async stop() {
       await gps.stop();
       setBackgroundPointHandler(null);
@@ -225,7 +296,7 @@ export const useTrackingStore = create<TrackState>((set, get) => {
           running?: boolean;
           distanceMeters?: number;
           lastPoint?: TrackPoint;
-          draft?: DraftRide;
+          draft?: DraftRide | DraftFreeTracking;
         };
 
         if (!parsed.draft) {

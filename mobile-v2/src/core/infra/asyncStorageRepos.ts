@@ -1,10 +1,12 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { Ride } from "@core/domain/types";
 
-/* =============== SETTINGS =============== */
 export type Settings = {
   metaDiariaBruta: number;
   metaMinRSKm: number;
+  radarMinValor: number;
+  radarMinRSKm: number;
+  radarMinRSHora: number;
 };
 
 const SETTINGS_KEY = "kmone:settings";
@@ -21,7 +23,18 @@ function makeSettingsRepo() {
           typeof parsed.metaDiariaBruta === "number" &&
           typeof parsed.metaMinRSKm === "number"
         ) {
-          return parsed as Settings;
+          return {
+            metaDiariaBruta: parsed.metaDiariaBruta,
+            metaMinRSKm: parsed.metaMinRSKm,
+            radarMinValor:
+              typeof parsed.radarMinValor === "number" ? parsed.radarMinValor : 8,
+            radarMinRSKm:
+              typeof parsed.radarMinRSKm === "number" ? parsed.radarMinRSKm : 1.8,
+            radarMinRSHora:
+              typeof parsed.radarMinRSHora === "number"
+                ? parsed.radarMinRSHora
+                : 22,
+          };
         }
       } catch {}
       return null;
@@ -34,6 +47,9 @@ function makeSettingsRepo() {
       const next: Settings = {
         metaDiariaBruta: current?.metaDiariaBruta ?? 0,
         metaMinRSKm: current?.metaMinRSKm ?? 1,
+        radarMinValor: current?.radarMinValor ?? 8,
+        radarMinRSKm: current?.radarMinRSKm ?? 1.8,
+        radarMinRSHora: current?.radarMinRSHora ?? 22,
         ...partial,
       };
       await AsyncStorage.setItem(SETTINGS_KEY, JSON.stringify(next));
@@ -42,8 +58,6 @@ function makeSettingsRepo() {
 }
 
 export const settingsRepo = makeSettingsRepo();
-
-/* =============== RIDE =============== */
 
 const RIDE_PREFIX = "kmone:rides:";
 
@@ -61,8 +75,8 @@ async function readRideDay(dateISO: string): Promise<Ride[]> {
     if (Array.isArray(parsed)) return parsed as Ride[];
     if (parsed && Array.isArray(parsed.items)) return parsed.items as Ride[];
     if (parsed && parsed.id) return [parsed as Ride];
-  } catch (e) {
-    console.warn("[RideRepo.read] JSON inválido para", key, e);
+  } catch (error) {
+    console.warn("[RideRepo.read] JSON invalido para", key, error);
   }
   return [];
 }
@@ -76,47 +90,33 @@ function makeRideRepo() {
   return {
     async create(ride: Ride): Promise<void> {
       const list = await readRideDay(ride.dataISO);
-      const idx = list.findIndex((r) => r.id === ride.id);
+      const idx = list.findIndex((item) => item.id === ride.id);
       if (idx >= 0) list[idx] = ride;
       else list.push(ride);
       await writeRideDay(ride.dataISO, list);
     },
     async update(ride: Ride): Promise<void> {
       const list = await readRideDay(ride.dataISO);
-      const idx = list.findIndex((r) => r.id === ride.id);
+      const idx = list.findIndex((item) => item.id === ride.id);
       if (idx >= 0) list[idx] = ride;
       await writeRideDay(ride.dataISO, list);
     },
     async remove(id: string, dateISO: string): Promise<void> {
       const key = rideKeyFor(dateISO);
       const raw = await AsyncStorage.getItem(key);
-      if (!raw) {
-        console.log("[RideRepo.remove] nada salvo para", key);
-        return;
-      }
+      if (!raw) return;
+
       let list: Ride[] = [];
       try {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed)) list = parsed as Ride[];
-        else if (parsed && Array.isArray(parsed.items))
-          list = parsed.items as Ride[];
-      } catch (e) {
-        console.warn("[RideRepo.remove] JSON inválido para", key, e);
+        else if (parsed && Array.isArray(parsed.items)) list = parsed.items as Ride[];
+      } catch (error) {
+        console.warn("[RideRepo.remove] JSON invalido para", key, error);
       }
 
-      const before = list.length;
-      const next = list.filter((r) => r.id !== id);
+      const next = list.filter((ride) => ride.id !== id);
       await AsyncStorage.setItem(key, JSON.stringify(next));
-      console.log(
-        "[RideRepo.remove] key:",
-        key,
-        "| id:",
-        id,
-        "| antes:",
-        before,
-        "| depois:",
-        next.length
-      );
     },
     async listByDate(dateISO: string): Promise<Ride[]> {
       return readRideDay(dateISO);
@@ -124,10 +124,8 @@ function makeRideRepo() {
   };
 }
 
-/** 👉 SINGLETONS para importar em TODO lugar */
 export const rideRepo = makeRideRepo();
 
-/* =============== FUEL (opcional) =============== */
 export type Fuel = {
   id: string;
   dataISO: string;
@@ -165,14 +163,14 @@ function makeFuelRepo() {
   return {
     async create(fuel: Fuel): Promise<void> {
       const list = await readFuelDay(fuel.dataISO);
-      const idx = list.findIndex((f) => f.id === fuel.id);
+      const idx = list.findIndex((item) => item.id === fuel.id);
       if (idx >= 0) list[idx] = fuel;
       else list.push(fuel);
       await writeFuelDay(fuel.dataISO, list);
     },
     async update(fuel: Fuel): Promise<void> {
       const list = await readFuelDay(fuel.dataISO);
-      const idx = list.findIndex((f) => f.id === fuel.id);
+      const idx = list.findIndex((item) => item.id === fuel.id);
       if (idx >= 0) list[idx] = fuel;
       await writeFuelDay(fuel.dataISO, list);
     },
@@ -180,7 +178,7 @@ function makeFuelRepo() {
       const list = await readFuelDay(dateISO);
       await writeFuelDay(
         dateISO,
-        list.filter((f) => f.id !== id)
+        list.filter((fuel) => fuel.id !== id),
       );
     },
     async listByDate(dateISO: string): Promise<Fuel[]> {

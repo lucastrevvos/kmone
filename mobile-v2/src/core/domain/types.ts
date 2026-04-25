@@ -1,4 +1,6 @@
 export type AppFonte = "Uber" | "99" | "Outros";
+export type RideMode = "app" | "tracking_livre";
+export type FreeTrackingLabel = "Ocioso" | "Particular" | "Deslocamento";
 
 export interface Ride {
   id: string;
@@ -6,6 +8,8 @@ export interface Ride {
   kmRodado: number;
   receitaBruta: number;
   app: AppFonte;
+  mode?: RideMode;
+  trackingLabel?: FreeTrackingLabel;
   obs?: string;
 
   startedAt?: string;
@@ -22,14 +26,17 @@ export interface FuelToUp {
 }
 
 export interface Settings {
-  metaDiariaBruta: number; // 260
-  metaMinRSKm: number; // 1.5
+  metaDiariaBruta: number;
+  metaMinRSKm: number;
+  radarMinValor: number;
+  radarMinRSKm: number;
+  radarMinRSHora: number;
 }
 
 export interface RideTracking {
   id: string;
   startedAt: string;
   endedAt?: string;
-  distanceMeters: number; // acumulado
-  points: Array<{ lat: number; lon: number; t: number }>; // opcional salvar cada N pontos
+  distanceMeters: number;
+  points: Array<{ lat: number; lon: number; t: number }>;
 }
