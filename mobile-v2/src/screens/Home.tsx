@@ -67,6 +67,7 @@ export default function Home() {
     loading: overlayLoading,
     readiness: overlayReadiness,
     lastCapture,
+    recentDebugReads,
     sync: syncOfferOverlay,
     requestOverlayPermission,
     requestAccessibilityPermission,
@@ -139,6 +140,16 @@ export default function Home() {
 
     return () => subscription.remove();
   }, [syncOfferOverlay]);
+
+  useEffect(() => {
+    if (!overlaySupported || !overlayActive) return;
+
+    const interval = setInterval(() => {
+      void syncOfferOverlay();
+    }, 1500);
+
+    return () => clearInterval(interval);
+  }, [overlayActive, overlaySupported, syncOfferOverlay]);
 
   useEffect(() => {
     if (!overlaySupported || overlayLoading || overlayActive || !allRadarReady) {
@@ -877,6 +888,50 @@ export default function Home() {
                 >
                   <Ionicons name="flash-outline" size={18} color="#0F172A" />
                 </Pressable>
+              </View>
+            </View>
+          )}
+
+          {recentDebugReads.length > 0 && (
+            <View className="rounded-[24px] border border-slate-200 bg-white p-4">
+              <View className="flex-row items-start justify-between">
+                <View className="flex-1 pr-3">
+                  <Text className="text-xs font-semibold uppercase tracking-[1.4px] text-slate-400">
+                    Leitura bruta do radar
+                  </Text>
+                  <Text className="mt-2 text-xl font-bold text-slate-900">
+                    Ultimos textos recebidos
+                  </Text>
+                  <Text className="mt-2 text-sm text-slate-500">
+                    Quando a oferta abrir, confira aqui o texto real que o Uber entregou para a acessibilidade.
+                  </Text>
+                </View>
+
+                <Pressable
+                  onPress={() => void syncOfferOverlay()}
+                  className="rounded-full px-3 py-2"
+                  style={{ backgroundColor: "#E2E8F0" }}
+                >
+                  <Text className="text-xs font-semibold text-slate-700">
+                    Atualizar
+                  </Text>
+                </Pressable>
+              </View>
+
+              <View className="mt-4 gap-3">
+                {recentDebugReads.slice(0, 4).map((item) => (
+                  <View
+                    key={`${item.capturedAt}-${item.rawText.slice(0, 16)}`}
+                    className="rounded-2xl border border-slate-200 bg-slate-50 p-3"
+                  >
+                    <Text className="text-xs font-semibold uppercase tracking-[1.2px] text-slate-400">
+                      {sourceToApp(item.sourceApp)} • {new Date(item.capturedAt).toLocaleTimeString("pt-BR")}
+                    </Text>
+                    <Text className="mt-2 text-sm leading-5 text-slate-700">
+                      {item.rawText}
+                    </Text>
+                  </View>
+                ))}
               </View>
             </View>
           )}

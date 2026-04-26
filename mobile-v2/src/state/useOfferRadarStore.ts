@@ -5,6 +5,8 @@ import type {
   OfferAnalysisStatus,
   OfferCapturePayload,
   OfferCaptureStatus,
+  OfferDebugState,
+  OfferDebugRead,
   OfferSourceApp,
   OverlayReadiness,
 } from "@features/offerRadar/types";
@@ -17,6 +19,8 @@ type OfferRadarStore = {
   sourceApp: OfferSourceApp;
   readiness: OverlayReadiness;
   lastCapture: OfferCapturePayload | null;
+  recentDebugReads: OfferDebugRead[];
+  debugState: OfferDebugState | null;
   lastDecision: OfferAnalysisStatus | null;
   sync(): Promise<void>;
   requestOverlayPermission(): Promise<boolean>;
@@ -42,6 +46,8 @@ export const useOfferRadarStore = create<OfferRadarStore>((set, get) => ({
   sourceApp: "unknown",
   readiness: defaultReadiness,
   lastCapture: null,
+  recentDebugReads: [],
+  debugState: null,
   lastDecision: null,
 
   async sync() {
@@ -54,6 +60,8 @@ export const useOfferRadarStore = create<OfferRadarStore>((set, get) => ({
         readiness: state.readiness,
         captureStatus: state.captureStatus,
         lastCapture: state.lastCapture,
+        recentDebugReads: state.recentDebugReads,
+        debugState: state.debugState,
         sourceApp: state.lastCapture?.sourceApp ?? "unknown",
       });
     } finally {

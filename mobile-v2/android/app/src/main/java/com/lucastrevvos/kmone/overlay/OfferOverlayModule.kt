@@ -49,6 +49,7 @@ class OfferOverlayModule(
   init {
     reactContext.addActivityEventListener(this)
     latestInstance = this
+    Log.d(tag, "[KMONE_OCR] OfferOverlayModule init package=${reactContext.packageName}")
   }
 
   @ReactMethod
@@ -152,12 +153,24 @@ class OfferOverlayModule(
       return
     }
     val map = Arguments.createMap().apply {
+      putString("frameId", capture.frameId)
       putString("sourceApp", capture.sourceApp)
       putDouble("offeredValue", capture.offeredValue)
       putDouble("estimatedKm", capture.estimatedKm)
       putDouble("estimatedMinutes", capture.estimatedMinutes)
       putString("capturedAt", capture.capturedAt)
       putString("rawText", capture.rawText)
+      putString("category", capture.category)
+      putBoolean("isExclusive", capture.isExclusive)
+      capture.pickupMinutes?.let { putDouble("pickupMinutes", it) }
+      capture.pickupKm?.let { putDouble("pickupKm", it) }
+      capture.tripMinutes?.let { putDouble("tripMinutes", it) }
+      capture.tripKm?.let { putDouble("tripKm", it) }
+      putString("note", capture.note)
+      putString("parsedTimeKmPairs", capture.parsedTimeKmPairs)
+      putString("pickupPairSource", capture.pickupPairSource)
+      putString("tripPairSource", capture.tripPairSource)
+      capture.parserConfidence?.let { putDouble("parserConfidence", it) }
     }
     promise.resolve(map)
   }
@@ -180,6 +193,142 @@ class OfferOverlayModule(
   @ReactMethod
   fun getCaptureStatus(promise: Promise) {
     promise.resolve(OfferOverlayRuntime.captureStatus)
+  }
+
+  @ReactMethod
+  fun getDebugState(promise: Promise) {
+    val state = OfferOverlayRuntime.getDebugState()
+    val map = Arguments.createMap().apply {
+      putString("captureStatus", state.captureStatus)
+      putString("currentSourceApp", state.currentSourceApp)
+      putString("lastSourceApp", state.lastSourceApp)
+      putString("lastOcrRawText", state.lastOcrRawText)
+      putString("lastParserReason", state.lastParserReason)
+      putString("lastOcrError", state.lastOcrError)
+      putString("lastNativeError", state.lastNativeError)
+      putString("lastSavedFramePath", state.lastSavedFramePath)
+      putString("lastAnyOcrRawText", state.lastAnyOcrRawText)
+      putString("lastAnyParserReason", state.lastAnyParserReason)
+      putString("lastAnySavedFramePath", state.lastAnySavedFramePath)
+      putString("lastUberOcrRawText", state.lastUberOcrRawText)
+        putString("lastUberParserReason", state.lastUberParserReason)
+        putString("lastUberSavedFramePath", state.lastUberSavedFramePath)
+        putString("lastUberCapturedAt", state.lastUberCapturedAt)
+        putString("sessionId", state.sessionId)
+        putString("latestFrameId", state.latestFrameId)
+        putString("latestFrameCapturedAt", state.latestFrameCapturedAt)
+        putString("latestFrameProcessedAt", state.latestFrameProcessedAt)
+        putString("latestFrameClassifiedAt", state.latestFrameClassifiedAt)
+        putString("latestFrameSourceApp", state.latestFrameSourceApp)
+        putString("latestFrameFinalSourceApp", state.latestFrameFinalSourceApp)
+        putString("latestFrameCaptureStatusAtFrame", state.latestFrameCaptureStatusAtFrame)
+        putString("latestFrameSourceAppBeforeOcr", state.latestFrameSourceAppBeforeOcr)
+        putString("latestFramePathFull", state.latestFramePathFull)
+        putString("latestFramePathCrop", state.latestFramePathCrop)
+        putString("latestFrameOcrText", state.latestFrameOcrText)
+        putString("latestFrameParserReason", state.latestFrameParserReason)
+        putString("latestFrameOcrClassifiedSourceApp", state.latestFrameOcrClassifiedSourceApp)
+        putDouble("latestFrameSourceConfidence", state.latestFrameSourceConfidence ?: 0.0)
+        putString("latestFrameSourceReason", state.latestFrameSourceReason)
+        putString("latestUberFrameId", state.latestUberFrameId)
+        putString("latestUberFrameCapturedAt", state.latestUberFrameCapturedAt)
+        putString("latestUberFrameProcessedAt", state.latestUberFrameProcessedAt)
+        putString("latestUberFrameSourceApp", state.latestUberFrameSourceApp)
+        putString("latestUberFramePathFull", state.latestUberFramePathFull)
+        putString("latestUberFramePathCrop", state.latestUberFramePathCrop)
+        putString("latestUberFrameOcrText", state.latestUberFrameOcrText)
+        putString("latestUberFrameParserReason", state.latestUberFrameParserReason)
+        putInt("totalFramesReceived", state.totalFramesReceived)
+        putInt("totalFramesProcessed", state.totalFramesProcessed)
+        putInt("totalFramesWithText", state.totalFramesWithText)
+        putInt("totalFramesEmpty", state.totalFramesEmpty)
+        putInt("totalFramesError", state.totalFramesError)
+        putInt("totalFramesWhileUberDetected", state.totalFramesWhileUberDetected)
+        putInt("totalFramesWhile99Detected", state.totalFramesWhile99Detected)
+        putInt("totalFramesClassifiedAsUber", state.totalFramesClassifiedAsUber)
+        putInt("totalFramesClassifiedAs99", state.totalFramesClassifiedAs99)
+        putInt("totalFramesClassifiedAsSetup", state.totalFramesClassifiedAsSetup)
+        putInt("totalFramesClassifiedAsUnknown", state.totalFramesClassifiedAsUnknown)
+        putInt("totalPollingFrames", state.totalPollingFrames)
+        putInt("totalCallbackFrames", state.totalCallbackFrames)
+        putInt("totalFalsePositiveSetupBlocked", state.totalFalsePositiveSetupBlocked)
+        putString("lastFrameReceivedAt", state.lastFrameReceivedAt)
+        putString("lastFrameProcessedAtCounter", state.lastFrameProcessedAtCounter)
+        putString("lastUberDetectedAtFromAccessibility", state.lastUberDetectedAtFromAccessibility)
+        putString("last99DetectedAtFromAccessibility", state.last99DetectedAtFromAccessibility)
+        putString("lastFrameWhileUberDetectedAt", state.lastFrameWhileUberDetectedAt)
+        putString("lastFrameWhile99DetectedAt", state.lastFrameWhile99DetectedAt)
+        putString("latestFrameWhileUberDetectedPathFull", state.latestFrameWhileUberDetectedPathFull)
+        putString("latestFrameWhileUberDetectedPathCrop", state.latestFrameWhileUberDetectedPathCrop)
+        putString("latestFrameWhile99DetectedPathFull", state.latestFrameWhile99DetectedPathFull)
+        putString("latestFrameWhile99DetectedPathCrop", state.latestFrameWhile99DetectedPathCrop)
+        putDouble("ocrIntervalMs", state.ocrIntervalMs.toDouble())
+        putDouble("pollingIntervalMs", state.pollingIntervalMs.toDouble())
+        putString("ocrIntervalReason", state.ocrIntervalReason)
+        putInt("totalFramesSkippedByThrottle", state.totalFramesSkippedByThrottle)
+        putString("lastSkippedFrameAt", state.lastSkippedFrameAt)
+        putBoolean("mediaProjectionActive", state.mediaProjectionActive)
+        putString("mediaProjectionStoppedAt", state.mediaProjectionStoppedAt)
+        putBoolean("virtualDisplayActive", state.virtualDisplayActive)
+        putString("virtualDisplayCreatedAt", state.virtualDisplayCreatedAt)
+        putBoolean("imageReaderActive", state.imageReaderActive)
+        putString("imageReaderCreatedAt", state.imageReaderCreatedAt)
+        putInt("imageAvailableCallbackCount", state.imageAvailableCallbackCount)
+        putString("lastImageAvailableAt", state.lastImageAvailableAt)
+        putString("lastAcquireLatestImageResult", state.lastAcquireLatestImageResult)
+        putString("lastAcquireLatestImageNullAt", state.lastAcquireLatestImageNullAt)
+        putBoolean("imageReaderSurfaceValid", state.imageReaderSurfaceValid)
+        state.imageReaderWidth?.let { putInt("imageReaderWidth", it) }
+        state.imageReaderHeight?.let { putInt("imageReaderHeight", it) }
+        state.imageReaderPixelFormat?.let { putInt("imageReaderPixelFormat", it) }
+        state.imageReaderMaxImages?.let { putInt("imageReaderMaxImages", it) }
+        putInt("openImageCount", state.openImageCount)
+        putInt("totalImagesClosed", state.totalImagesClosed)
+        putString("lastPollImageAt", state.lastPollImageAt)
+        putBoolean("handlerThreadAlive", state.handlerThreadAlive)
+        putString("handlerThreadName", state.handlerThreadName)
+        state.virtualDisplayWidth?.let { putInt("virtualDisplayWidth", it) }
+        state.virtualDisplayHeight?.let { putInt("virtualDisplayHeight", it) }
+        state.virtualDisplayDensityDpi?.let { putInt("virtualDisplayDensityDpi", it) }
+        state.virtualDisplayFlags?.let { putInt("virtualDisplayFlags", it) }
+        putString("virtualDisplayFlagsName", state.virtualDisplayFlagsName)
+        putString("virtualDisplayName", state.virtualDisplayName)
+        putString("captureResolutionMode", state.captureResolutionMode)
+        putString("captureAcquireMode", state.captureAcquireMode)
+        putString("projectionStopReason", state.projectionStopReason)
+        putString("lastPipelineRestartReason", state.lastPipelineRestartReason)
+        putString("lastPipelineRestartAt", state.lastPipelineRestartAt)
+        putString("lastPipelineRestartFailedAt", state.lastPipelineRestartFailedAt)
+        putInt("pipelineRestartFailureCount", state.pipelineRestartFailureCount)
+        putBoolean("isRecreatingPipeline", state.isRecreatingPipeline)
+        putBoolean("isProjectionStopping", state.isProjectionStopping)
+        putBoolean("isCapturePipelineActive", state.isCapturePipelineActive)
+        putBoolean("needsScreenCapturePermissionRefresh", state.needsScreenCapturePermissionRefresh)
+        state.lastUberCapture?.let { capture ->
+          val captureMap = Arguments.createMap().apply {
+            putString("frameId", capture.frameId)
+            putString("sourceApp", capture.sourceApp)
+          putDouble("offeredValue", capture.offeredValue)
+          putDouble("estimatedKm", capture.estimatedKm)
+          putDouble("estimatedMinutes", capture.estimatedMinutes)
+          putString("capturedAt", capture.capturedAt)
+          putString("rawText", capture.rawText)
+          putString("category", capture.category)
+          putBoolean("isExclusive", capture.isExclusive)
+          capture.pickupMinutes?.let { putDouble("pickupMinutes", it) }
+          capture.pickupKm?.let { putDouble("pickupKm", it) }
+          capture.tripMinutes?.let { putDouble("tripMinutes", it) }
+          capture.tripKm?.let { putDouble("tripKm", it) }
+          putString("note", capture.note)
+          putString("parsedTimeKmPairs", capture.parsedTimeKmPairs)
+          putString("pickupPairSource", capture.pickupPairSource)
+          putString("tripPairSource", capture.tripPairSource)
+          capture.parserConfidence?.let { putDouble("parserConfidence", it) }
+        }
+        putMap("lastUberCapture", captureMap)
+      }
+    }
+    promise.resolve(map)
   }
 
   @ReactMethod

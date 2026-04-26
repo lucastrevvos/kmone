@@ -27,6 +27,7 @@ class OfferAccessibilityService : AccessibilityService() {
     }
     Log.d(tag, "[KMONE_OCR] accessibility event package=$packageName source=$sourceApp type=${event.eventType}")
     OfferOverlayRuntime.noteVisibleSourceApp(sourceApp)
+    OfferCaptureService.boostForRideAppDetection()
 
     processSnapshot(sourceApp, event)
     scheduleDelayedSnapshot(sourceApp, 120L)

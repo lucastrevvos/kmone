@@ -53,6 +53,21 @@ class OfferCaptureService : Service() {
   private var serviceStartedAt = 0L
   private var latestFullFrame: Bitmap? = null
   private var latestCroppedFrame: Bitmap? = null
+  private var forceProcessUntilEpochMs: Long = 0L
+  private var lastProjectionStartResultCode: Int? = null
+  private var projectionDataIntent: Intent? = null
+  private var projectionStopRequestedByApp = false
+  private var isRecreatingPipeline = false
+  private var lastImageAvailableEpochMs = 0L
+  private var captureWidth = 0
+  private var captureHeight = 0
+  private var captureDensityDpi = 0
+  private val pollRunnable = object : Runnable {
+    override fun run() {
+      pollForImage()
+      workerHandler?.postDelayed(this, OfferOverlayRuntime.getCurrentOcrIntervalMs())
+    }
+  }
   private val diagnosticRunnable = object : Runnable {
     override fun run() {
       runDiagnosticTick()
@@ -63,11 +78,14 @@ class OfferCaptureService : Service() {
   override fun onBind(intent: Intent?): IBinder? = null
 
   override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+    latestInstance = this
     try {
       Log.d(tag, "[KMONE_OCR] OfferCaptureService onStartCommand action=${intent?.action}")
       when (intent?.action) {
         ACTION_STOP -> {
           Log.d(tag, "[KMONE_OCR] OfferCaptureService stop requested")
+          projectionStopRequestedByApp = true
+          OfferOverlayRuntime.setPipelineLifecycleFlags(projectionStopping = true)
           stopSelf()
           return START_NOT_STICKY
         }
@@ -88,6 +106,8 @@ class OfferCaptureService : Service() {
             stopSelf()
             return START_NOT_STICKY
           }
+          lastProjectionStartResultCode = resultCode
+          projectionDataIntent = Intent(data)
           startProjection(resultCode, data)
         }
       }
@@ -107,81 +127,87 @@ class OfferCaptureService : Service() {
   override fun onDestroy() {
     super.onDestroy()
     Log.d(tag, "[KMONE_OCR] OfferCaptureService onDestroy")
+    latestInstance = null
     teardown()
     recognizer.close()
   }
 
   private fun startProjection(resultCode: Int, data: Intent) {
-    if (mediaProjection != null) return
-
     try {
       Log.d(tag, "[KMONE_OCR] startProjection resultCode=$resultCode")
-      val manager = ContextCompat.getSystemService(
-        this,
-        MediaProjectionManager::class.java,
-      ) ?: run {
-        OfferOverlayRuntime.reportNativeError(
-          OfferOverlayRuntime.currentSourceApp,
-          "MediaProjectionManager indisponivel",
-        )
-        stopSelf()
-        return
-      }
-      val projection = manager.getMediaProjection(resultCode, data) ?: run {
-        OfferOverlayRuntime.reportNativeError(
-          OfferOverlayRuntime.currentSourceApp,
-          "Nao foi possivel criar MediaProjection",
-        )
-        stopSelf()
-        return
+      projectionStopRequestedByApp = false
+      OfferOverlayRuntime.setPipelineLifecycleFlags(
+        recreating = false,
+        projectionStopping = false,
+      )
+      val projection = mediaProjection ?: run {
+        val manager = ContextCompat.getSystemService(
+          this,
+          MediaProjectionManager::class.java,
+        ) ?: run {
+          OfferOverlayRuntime.reportNativeError(
+            OfferOverlayRuntime.currentSourceApp,
+            "MediaProjectionManager indisponivel",
+          )
+          stopSelf()
+          return
+        }
+        manager.getMediaProjection(resultCode, data) ?: run {
+          OfferOverlayRuntime.reportNativeError(
+            OfferOverlayRuntime.currentSourceApp,
+            "Nao foi possivel criar MediaProjection",
+          )
+          stopSelf()
+          return
+        }
       }
       val metrics = DisplayMetrics()
       val wm = getSystemService(Context.WINDOW_SERVICE) as WindowManager
       @Suppress("DEPRECATION")
       wm.defaultDisplay.getRealMetrics(metrics)
-
-      workerThread = HandlerThread("OfferCaptureWorker").also { it.start() }
-      workerHandler = Handler(workerThread!!.looper)
-      Log.d(tag, "[KMONE_OCR] worker thread started")
+  
+      if (workerThread == null || workerHandler == null) {
+        workerThread = HandlerThread("OfferCaptureWorker").also { it.start() }
+        workerHandler = Handler(workerThread!!.looper)
+        Log.d(tag, "[KMONE_OCR] worker thread started")
+      }
+      OfferOverlayRuntime.updateHandlerThreadState(
+        workerThread?.isAlive == true,
+        workerThread?.name,
+      )
       workerHandler?.removeCallbacks(diagnosticRunnable)
       workerHandler?.postDelayed(diagnosticRunnable, 5000)
-
-      val callback = object : MediaProjection.Callback() {
-        override fun onStop() {
-          OfferOverlayRuntime.reportNativeError(
-            OfferOverlayRuntime.currentSourceApp,
-            "MediaProjection foi encerrado pelo sistema",
-          )
-          stopSelf()
+      workerHandler?.removeCallbacks(pollRunnable)
+      workerHandler?.postDelayed(pollRunnable, 1000)
+  
+      if (mediaProjection == null) {
+        val callback = object : MediaProjection.Callback() {
+          override fun onStop() {
+            if (projectionStopRequestedByApp) {
+              Log.i(tag, "[KMONE_OCR] MediaProjection onStop after app-requested stop")
+              OfferOverlayRuntime.updateProjectionState(
+                false,
+                "MediaProjection onStop after app-requested stop",
+              )
+              return
+            }
+            Log.e(tag, "[KMONE_OCR] MediaProjection onStop from system")
+            OfferOverlayRuntime.updateProjectionState(false, "MediaProjection callback onStop")
+            OfferOverlayRuntime.reportNativeError(
+              OfferOverlayRuntime.currentSourceApp,
+              "MediaProjection foi encerrado pelo sistema",
+            )
+            stopSelf()
+          }
         }
+        mediaProjectionCallback = callback
+        projection.registerCallback(callback, workerHandler)
+        mediaProjection = projection
+        OfferOverlayRuntime.updateProjectionState(true)
+        Log.d(tag, "[KMONE_OCR] MediaProjection callback registered")
       }
-      mediaProjectionCallback = callback
-      projection.registerCallback(callback, workerHandler)
-      mediaProjection = projection
-      Log.d(tag, "[KMONE_OCR] MediaProjection callback registered")
 
-      val reader = ImageReader.newInstance(
-        metrics.widthPixels,
-        metrics.heightPixels,
-        PixelFormat.RGBA_8888,
-        2,
-      )
-      imageReader = reader
-      Log.d(tag, "[KMONE_OCR] ImageReader created width=${metrics.widthPixels} height=${metrics.heightPixels}")
-
-      reader.setOnImageAvailableListener({ handleImageAvailable() }, workerHandler)
-
-      virtualDisplay = projection.createVirtualDisplay(
-        "OfferCaptureDisplay",
-        metrics.widthPixels,
-        metrics.heightPixels,
-        metrics.densityDpi,
-        DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR,
-        reader.surface,
-        null,
-        workerHandler,
-      )
-      Log.d(tag, "[KMONE_OCR] VirtualDisplay created")
+      ensureCapturePipeline(projection, metrics)
       OfferOverlayRuntime.reportOcrSessionStarted(
         OfferOverlayRuntime.currentSourceApp,
         "sessao=${serviceStartedAt}",
@@ -197,22 +223,58 @@ class OfferCaptureService : Service() {
   }
 
   private fun handleImageAvailable() {
+    tryAcquireAndProcessImage("callback")
+  }
+
+  private fun pollForImage() {
+    tryAcquireAndProcessImage("polling")
+  }
+
+  private fun tryAcquireAndProcessImage(acquireSource: String) {
     if (!OfferOverlayRuntime.overlayActive) return
     if (processing) return
 
     val now = System.currentTimeMillis()
+    if (acquireSource == "callback") {
+      OfferOverlayRuntime.reportImageAvailableCallback()
+      lastImageAvailableEpochMs = now
+    } else {
+      OfferOverlayRuntime.reportPollImageResult("tick")
+    }
     if (now - lastFrameTickAt > 4000) {
       lastFrameTickAt = now
       OfferOverlayRuntime.reportOcrFrameTick(
         OfferOverlayRuntime.currentSourceApp,
-        "frame-recebido",
+        "frame-recebido | source=$acquireSource | thread=${Thread.currentThread().name}",
       )
     }
-    if (now - lastProcessedAt < 700) return
+    val intervalMs = OfferOverlayRuntime.getCurrentOcrIntervalMs()
+    val forceProcess = now <= forceProcessUntilEpochMs
+    if (!forceProcess && now - lastProcessedAt < intervalMs) {
+      OfferOverlayRuntime.reportFrameSkippedByThrottle(OfferOverlayRuntime.currentSourceApp)
+      return
+    }
 
     val reader = imageReader ?: return
-    val image = reader.acquireLatestImage() ?: return
-    Log.d(tag, "[KMONE_OCR] handleImageAvailable image=${image.width}x${image.height}")
+    var image = reader.acquireLatestImage()
+    if (image == null) {
+      OfferOverlayRuntime.reportAcquireLatestImage("latest-null:$acquireSource")
+      image = reader.acquireNextImage()
+    }
+    if (image == null) {
+      OfferOverlayRuntime.reportAcquireLatestImage("next-null:$acquireSource")
+      if (acquireSource == "polling") {
+        OfferOverlayRuntime.reportPollImageResult("null")
+      }
+      return
+    }
+    OfferOverlayRuntime.reportAcquireLatestImage("image-ok:$acquireSource")
+    OfferOverlayRuntime.reportImageAcquired(acquireSource, image.width, image.height)
+    if (acquireSource == "polling") {
+      OfferOverlayRuntime.reportPollImageResult("ok")
+    }
+    lastImageAvailableEpochMs = now
+    Log.d(tag, "[KMONE_OCR] handleImageAvailable source=$acquireSource image=${image.width}x${image.height}")
     processing = true
     lastProcessedAt = now
 
@@ -222,6 +284,8 @@ class OfferCaptureService : Service() {
 
       val width = image.width
       val height = image.height
+      val frameCapturedAt = System.currentTimeMillis()
+      val frameId = "frame-$frameCapturedAt"
       val buffer = plane.buffer
       val pixelStride = plane.pixelStride
       val rowStride = plane.rowStride
@@ -239,10 +303,18 @@ class OfferCaptureService : Service() {
       val debugFrame = scanBitmaps.firstOrNull()?.copy(Bitmap.Config.ARGB_8888, false)
       val debugFrameForSave = debugFrame?.copy(Bitmap.Config.ARGB_8888, false)
       bitmap.recycle()
+      OfferOverlayRuntime.reportFrameAttempt(
+        OfferOverlayRuntime.currentSourceApp,
+        frameId,
+        frameCapturedAt,
+        width,
+        height,
+        acquireSource,
+      )
       storeLatestFrames(fullDebugFrame, debugFrameForSave)
 
       val texts = mutableListOf<String>()
-      processRegionSequentially(scanBitmaps, 0, texts, debugFrame)
+      processRegionSequentially(scanBitmaps, 0, texts, debugFrame, frameId)
     } catch (error: Throwable) {
       OfferOverlayRuntime.reportNativeError(
         OfferOverlayRuntime.currentSourceApp,
@@ -250,7 +322,15 @@ class OfferCaptureService : Service() {
       )
       processing = false
     } finally {
-      image.close()
+      try {
+        image.close()
+        OfferOverlayRuntime.reportImageClosed(acquireSource)
+      } catch (error: Throwable) {
+        OfferOverlayRuntime.reportImageCloseFailed(
+          acquireSource,
+          "${error.javaClass.simpleName} ${error.message.orEmpty()}".trim(),
+        )
+      }
     }
   }
 
@@ -304,6 +384,7 @@ class OfferCaptureService : Service() {
     index: Int,
     collectedTexts: MutableList<String>,
     debugFrame: Bitmap?,
+    frameId: String,
   ) {
     if (index >= regions.size) {
       val combined = collectedTexts
@@ -318,6 +399,7 @@ class OfferCaptureService : Service() {
           OfferOverlayRuntime.currentSourceApp,
           combined,
           "ocr",
+          frameId,
         )
       } else {
         OfferOverlayRuntime.reportOcrEmpty(OfferOverlayRuntime.currentSourceApp)
@@ -328,34 +410,57 @@ class OfferCaptureService : Service() {
     }
 
     val region = regions[index]
+    Log.d(tag, "[KMONE_OCR] sending region[$index] to ML Kit ${region.width}x${region.height}")
     val inputImage = InputImage.fromBitmap(region, 0)
     recognizer
       .process(inputImage)
       .addOnSuccessListener { result ->
         val text = result.text?.trim().orEmpty()
+        Log.d(tag, "[KMONE_OCR] ML Kit success region[$index] textLength=${text.length}")
         if (text.isNotBlank()) {
           Log.d(tag, "[KMONE_OCR] OCR region[$index] textLength=${text.length}")
           collectedTexts.add(text)
         }
       }
-      .addOnFailureListener {
+      .addOnFailureListener { error ->
+        Log.e(tag, "[KMONE_OCR] ML Kit failure region[$index] ${error.message.orEmpty()}")
         OfferOverlayRuntime.reportNativeError(
           OfferOverlayRuntime.currentSourceApp,
-          "Falha no OCR da imagem",
+          "Falha no OCR da imagem: ${error.message.orEmpty()}".trim(),
         )
       }
       .addOnCompleteListener {
         region.recycle()
-        processRegionSequentially(regions, index + 1, collectedTexts, debugFrame)
+        processRegionSequentially(regions, index + 1, collectedTexts, debugFrame, frameId)
       }
   }
 
   private fun runDiagnosticTick() {
     val now = System.currentTimeMillis()
+    val secondsSinceLastFrame =
+      if (lastProcessedAt == 0L) Double.POSITIVE_INFINITY
+      else (now - lastProcessedAt).toDouble() / 1000.0
+    val secondsSinceLastImageAvailable =
+      if (lastImageAvailableEpochMs == 0L) Double.POSITIVE_INFINITY
+      else (now - lastImageAvailableEpochMs).toDouble() / 1000.0
+    OfferOverlayRuntime.updateHandlerThreadState(
+      workerThread?.isAlive == true,
+      workerThread?.name,
+    )
+    OfferOverlayRuntime.reportServiceAliveTick(
+      if (secondsSinceLastFrame.isFinite()) secondsSinceLastFrame else 9999.0,
+    )
+    OfferOverlayRuntime.reportImageReaderHealth(
+      if (secondsSinceLastImageAvailable.isFinite()) secondsSinceLastImageAvailable else 9999.0,
+    )
+    OfferOverlayRuntime.reportVirtualDisplayHealth(
+      imageReader?.surface?.isValid == true,
+    )
     if (now - serviceStartedAt < 6000) {
       return
     }
     if (now - lastSavedDebugFrameAt < 10_000) {
+      maybeRestartPipelineIfStalled(secondsSinceLastFrame)
       return
     }
     if (lastProcessedAt == 0L) {
@@ -364,6 +469,19 @@ class OfferCaptureService : Service() {
         OfferOverlayRuntime.currentSourceApp,
         "servico-ativo-sem-frame",
       )
+      if (OfferOverlayRuntime.currentSourceApp == "uber") {
+        OfferOverlayRuntime.reportNoFramesWhileUberForeground()
+      }
+      maybeRestartPipelineIfStalled(secondsSinceLastFrame)
+      return
+    }
+
+    val debugState = OfferOverlayRuntime.getDebugState()
+    val activeFrameId = debugState.latestFrameId
+    if (activeFrameId != null && activeFrameId == debugState.latestUberFrameId && debugState.latestUberFramePathCrop != null) {
+      return
+    }
+    if (activeFrameId != null && activeFrameId == debugState.latestFrameId && activeFrameId == lastSavedFrameId()) {
       return
     }
 
@@ -379,15 +497,17 @@ class OfferCaptureService : Service() {
     }
 
     lastSavedDebugFrameAt = now
+    val frameId = latestFrameId()
     if (fullFrame != null) {
-      saveDebugBitmap(fullFrame, "full", now)
+      saveDebugBitmap(fullFrame, "full", now, frameId)
       fullFrame.recycle()
     }
-    if (croppedFrame != null) {
-      saveDebugBitmap(croppedFrame, "crop", now)
-      croppedFrame.recycle()
+      if (croppedFrame != null) {
+        saveDebugBitmap(croppedFrame, "crop", now, frameId)
+        croppedFrame.recycle()
+      }
+      maybeRestartPipelineIfStalled(secondsSinceLastFrame)
     }
-  }
 
   private fun storeLatestFrames(fullFrame: Bitmap?, croppedFrame: Bitmap?) {
     latestFullFrame?.recycle()
@@ -404,6 +524,10 @@ class OfferCaptureService : Service() {
     latestCroppedFrame?.recycle()
     latestFullFrame = null
     latestCroppedFrame = null
+    lastImageAvailableEpochMs = 0L
+    captureWidth = 0
+    captureHeight = 0
+    captureDensityDpi = 0
     clearDebugDirectory()
   }
 
@@ -425,9 +549,9 @@ class OfferCaptureService : Service() {
     }
   }
 
-  private fun saveDebugBitmap(region: Bitmap, label: String, timestamp: Long) {
+  private fun saveDebugBitmap(region: Bitmap, label: String, timestamp: Long, frameId: String) {
     try {
-      val filename = "kmone_ocr_${label}_${timestamp}.jpg"
+      val filename = "kmone_ocr_${label}_${frameId}_${timestamp}.jpg"
       val baseDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES)
         ?: filesDir
       val debugDir = File(baseDir, "KMOneDebug").apply {
@@ -448,7 +572,11 @@ class OfferCaptureService : Service() {
       Log.d(tag, "[KMONE_OCR] debug frame saved ${outputFile.absolutePath}")
       OfferOverlayRuntime.reportOcrFrameSaved(
         OfferOverlayRuntime.currentSourceApp,
+        frameId,
+        label,
         outputFile.absolutePath,
+        region.width,
+        region.height,
       )
     } catch (error: Throwable) {
       OfferOverlayRuntime.reportOcrFrameSaveError(
@@ -484,33 +612,45 @@ class OfferCaptureService : Service() {
   }
 
   private fun teardown() {
+    Log.d(tag, "[KMONE_OCR] CAPTURE_PIPELINE_RELEASE_CALLED")
     Log.d(tag, "[KMONE_OCR] teardown")
+    projectionStopRequestedByApp = true
+    OfferOverlayRuntime.setPipelineLifecycleFlags(
+      recreating = false,
+      projectionStopping = true,
+    )
     try {
       imageReader?.setOnImageAvailableListener(null, null)
     } catch (_: Throwable) {
     }
     try {
       workerHandler?.removeCallbacks(diagnosticRunnable)
+      workerHandler?.removeCallbacks(pollRunnable)
     } catch (_: Throwable) {
     }
     try {
       virtualDisplay?.release()
+      Log.d(tag, "[KMONE_OCR] VIRTUAL_DISPLAY_RELEASED")
     } catch (_: Throwable) {
     }
+    OfferOverlayRuntime.updateVirtualDisplayState(false)
     try {
       imageReader?.close()
+      Log.d(tag, "[KMONE_OCR] IMAGE_READER_CLOSED")
     } catch (_: Throwable) {
     }
-    try {
-      mediaProjection?.stop()
-    } catch (_: Throwable) {
-    }
+    OfferOverlayRuntime.updateImageReaderState(false)
     try {
       mediaProjectionCallback?.let { callback ->
         mediaProjection?.unregisterCallback(callback)
       }
+      try {
+        mediaProjection?.stop()
+      } catch (_: Throwable) {
+      }
     } catch (_: Throwable) {
     }
+    OfferOverlayRuntime.updateProjectionState(false, "teardown")
     workerThread?.quitSafely()
     latestFullFrame?.recycle()
     latestCroppedFrame?.recycle()
@@ -528,7 +668,112 @@ class OfferCaptureService : Service() {
     lastSavedDebugFrameAt = 0L
     lastFrameTickAt = 0L
     lastProcessedAt = 0L
+    forceProcessUntilEpochMs = 0L
+    lastProjectionStartResultCode = null
+    projectionDataIntent = null
+    projectionStopRequestedByApp = false
+    isRecreatingPipeline = false
+    OfferOverlayRuntime.setPipelineLifecycleFlags(
+      recreating = false,
+      projectionStopping = false,
+    )
   }
+
+  private fun requestImmediateProcessing(windowMs: Long = 2500L) {
+    forceProcessUntilEpochMs = System.currentTimeMillis() + windowMs
+    lastProcessedAt = 0L
+  }
+
+  private fun ensureCapturePipeline(
+    projection: MediaProjection,
+    metrics: DisplayMetrics,
+  ) {
+    val targetWidth = 720
+    val resolutionMode = "scaled"
+    val targetHeight = ((metrics.heightPixels.toFloat() / metrics.widthPixels.toFloat()) * targetWidth)
+      .toInt()
+      .coerceAtLeast(1)
+    captureWidth = targetWidth
+    captureHeight = targetHeight
+    captureDensityDpi = metrics.densityDpi
+    val pixelFormat = PixelFormat.RGBA_8888
+    val maxImages = 5
+    val virtualDisplayName = "OfferCaptureDisplay"
+    val virtualDisplayFlags = DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR
+    val virtualDisplayFlagsName = "auto_mirror"
+    OfferOverlayRuntime.updateCaptureModes(
+      resolutionMode = resolutionMode,
+      acquireMode = "polling",
+    )
+    if (imageReader == null) {
+      val reader = ImageReader.newInstance(
+        captureWidth,
+        captureHeight,
+        pixelFormat,
+        maxImages,
+      )
+      imageReader = reader
+      OfferOverlayRuntime.updateImageReaderState(true)
+      OfferOverlayRuntime.updateImageReaderConfig(
+        width = captureWidth,
+        height = captureHeight,
+        pixelFormat = pixelFormat,
+        maxImages = maxImages,
+        surfaceValid = reader.surface?.isValid == true,
+      )
+      Log.d(
+        tag,
+        "[KMONE_OCR] IMAGE_READER_CREATED width=$captureWidth height=$captureHeight format=$pixelFormat maxImages=$maxImages surfaceValid=${reader.surface?.isValid == true}",
+      )
+      reader.setOnImageAvailableListener({ handleImageAvailable() }, workerHandler)
+    }
+
+    if (virtualDisplay == null) {
+      virtualDisplay = projection.createVirtualDisplay(
+        virtualDisplayName,
+        captureWidth,
+        captureHeight,
+        captureDensityDpi,
+        virtualDisplayFlags,
+        imageReader!!.surface,
+        null,
+        workerHandler,
+      )
+      OfferOverlayRuntime.updateVirtualDisplayState(true)
+      OfferOverlayRuntime.updateVirtualDisplayConfig(
+        width = captureWidth,
+        height = captureHeight,
+        densityDpi = captureDensityDpi,
+        flags = virtualDisplayFlags,
+        flagsName = virtualDisplayFlagsName,
+        name = virtualDisplayName,
+      )
+      Log.d(
+        tag,
+        "[KMONE_OCR] VIRTUAL_DISPLAY_CREATED name=$virtualDisplayName width=$captureWidth height=$captureHeight densityDpi=$captureDensityDpi flags=$virtualDisplayFlags",
+      )
+    }
+  }
+
+  private fun maybeRestartPipelineIfStalled(secondsSinceLastFrame: Double) {
+    if (OfferOverlayRuntime.currentSourceApp != "uber" && OfferOverlayRuntime.currentSourceApp != "99") return
+    if (secondsSinceLastFrame <= 2.0) return
+    if (isRecreatingPipeline) return
+    if (projectionStopRequestedByApp) return
+    if (mediaProjection == null || workerHandler == null) return
+    if (virtualDisplayActive() && imageReaderActive()) {
+      OfferOverlayRuntime.reportNoFramesButPipelineActive(secondsSinceLastFrame)
+      OfferOverlayRuntime.reportPipelineRestarted(
+        "PIPELINE_RESTART_SKIPPED_ALREADY_ACTIVE | source=${OfferOverlayRuntime.currentSourceApp} | callbackCount=${OfferOverlayRuntime.getDebugState().imageAvailableCallbackCount} | secondsSinceLastFrame=${"%.1f".format(secondsSinceLastFrame)}",
+      )
+      return
+    }
+    OfferOverlayRuntime.reportNoFramesButPipelineActive(secondsSinceLastFrame)
+  }
+
+  private fun virtualDisplayActive(): Boolean = virtualDisplay != null
+
+  private fun imageReaderActive(): Boolean = imageReader != null
 
   private fun startForegroundInternal() {
     val channelId = "offer_capture_channel"
@@ -561,6 +806,18 @@ class OfferCaptureService : Service() {
     }
   }
 
+  private fun latestFrameId(): String {
+    return OfferOverlayRuntime.getDebugState().latestFrameId ?: "frame-${System.currentTimeMillis()}"
+  }
+
+  private fun lastSavedFrameId(): String? {
+    val path = OfferOverlayRuntime.getDebugState().latestFramePathCrop
+      ?: OfferOverlayRuntime.getDebugState().latestFramePathFull
+      ?: return null
+    val match = Regex("""kmone_ocr_(?:full|crop)_(frame-\d+)_\d+\.jpg$""").find(path)
+    return match?.groupValues?.getOrNull(1)
+  }
+
   private inline fun <reified T> Intent.getParcelableExtraCompat(key: String): T? {
     return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
       getParcelableExtra(key, T::class.java)
@@ -575,6 +832,9 @@ class OfferCaptureService : Service() {
     private const val ACTION_STOP = "offer_capture_stop"
     private const val EXTRA_RESULT_CODE = "result_code"
     private const val EXTRA_RESULT_DATA = "result_data"
+
+    @Volatile
+    private var latestInstance: OfferCaptureService? = null
 
     fun start(context: Context, resultCode: Int?, data: Intent?) {
       if (resultCode == null || data == null) return
@@ -591,6 +851,10 @@ class OfferCaptureService : Service() {
     fun stop(context: Context) {
       Log.d("KMONE_OCR", "[KMONE_OCR] OfferCaptureService.stop called")
       context.stopService(Intent(context, OfferCaptureService::class.java))
+    }
+
+    fun boostForRideAppDetection() {
+      latestInstance?.requestImmediateProcessing()
     }
   }
 }
