@@ -7,9 +7,14 @@ import android.graphics.PixelFormat
 import android.media.projection.MediaProjectionManager
 import android.net.Uri
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import android.provider.Settings
 import android.text.TextUtils
+import android.util.Log
+import android.view.MotionEvent
 import android.view.Gravity
+import android.view.View
 import android.view.WindowManager
 import android.widget.TextView
 import androidx.core.content.ContextCompat
@@ -23,6 +28,7 @@ import com.facebook.react.bridge.ReactMethod
 class OfferOverlayModule(
   private val reactContext: ReactApplicationContext,
 ) : ReactContextBaseJavaModule(reactContext), ActivityEventListener {
+  private val tag = "KMONE_OCR"
 
   private val overlayRequestCode = 9237
   private val captureRequestCode = 9238
@@ -32,17 +38,24 @@ class OfferOverlayModule(
 
   private var windowManager: WindowManager? = null
   private var overlayView: TextView? = null
+  private var overlayParams: WindowManager.LayoutParams? = null
   private var screenCaptureGranted = false
+  private var screenCaptureResultCode: Int? = null
+  private var screenCaptureIntent: Intent? = null
+  private val mainHandler = Handler(Looper.getMainLooper())
 
   override fun getName(): String = "OfferOverlayModule"
 
   init {
     reactContext.addActivityEventListener(this)
+    latestInstance = this
   }
 
   @ReactMethod
   fun isOverlayPermissionGranted(promise: Promise) {
-    promise.resolve(hasOverlayPermission())
+    val granted = hasOverlayPermission()
+    Log.d(tag, "[KMONE_OCR] overlayPermission granted=$granted")
+    promise.resolve(granted)
   }
 
   @ReactMethod
@@ -55,6 +68,7 @@ class OfferOverlayModule(
 
     pendingOverlayPromise?.resolve(false)
     pendingOverlayPromise = promise
+    Log.d(tag, "[KMONE_OCR] openOverlayPermissionSettings")
 
     val intent = Intent(
       Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
@@ -65,12 +79,15 @@ class OfferOverlayModule(
 
   @ReactMethod
   fun isAccessibilityPermissionGranted(promise: Promise) {
-    promise.resolve(isAnyAccessibilityEnabled())
+    val granted = isAnyAccessibilityEnabled()
+    Log.d(tag, "[KMONE_OCR] accessibilityPermission granted=$granted")
+    promise.resolve(granted)
   }
 
   @ReactMethod
   fun openAccessibilityPermissionSettings(promise: Promise) {
     try {
+      Log.d(tag, "[KMONE_OCR] openAccessibilityPermissionSettings")
       val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).apply {
         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
       }
@@ -83,13 +100,16 @@ class OfferOverlayModule(
 
   @ReactMethod
   fun isScreenCapturePermissionGranted(promise: Promise) {
-    promise.resolve(screenCaptureGranted)
+    val granted = screenCaptureGranted && screenCaptureResultCode != null && screenCaptureIntent != null
+    Log.d(tag, "[KMONE_OCR] screenCapturePermission granted=$granted")
+    promise.resolve(granted)
   }
 
   @ReactMethod
   fun requestScreenCapturePermission(promise: Promise) {
     val activity = reactApplicationContext.currentActivity
     if (activity == null) {
+      Log.w(tag, "[KMONE_OCR] requestScreenCapturePermission without activity")
       promise.resolve(false)
       return
     }
@@ -99,12 +119,20 @@ class OfferOverlayModule(
       MediaProjectionManager::class.java,
     )
     if (manager == null) {
+      Log.e(tag, "[KMONE_OCR] MediaProjectionManager unavailable")
       promise.resolve(false)
       return
     }
 
     pendingCapturePromise?.resolve(false)
     pendingCapturePromise = promise
+    OfferCaptureService.stop(reactContext)
+    OfferOverlayRuntime.resetSession()
+    screenCaptureGranted = false
+    screenCaptureResultCode = null
+    screenCaptureIntent = null
+    OfferOverlayRuntime.captureStatus = "capturing"
+    Log.d(tag, "[KMONE_OCR] requestScreenCapturePermission launching system dialog")
     activity.startActivityForResult(
       manager.createScreenCaptureIntent(),
       captureRequestCode,
@@ -135,6 +163,21 @@ class OfferOverlayModule(
   }
 
   @ReactMethod
+  fun getRecentDebugReads(promise: Promise) {
+    val list = Arguments.createArray()
+    OfferOverlayRuntime.getRecentDebugReads().forEach { entry ->
+      val map = Arguments.createMap().apply {
+        putString("sourceApp", entry.sourceApp)
+        putString("channel", entry.channel)
+        putString("capturedAt", entry.capturedAt)
+        putString("rawText", entry.rawText)
+      }
+      list.pushMap(map)
+    }
+    promise.resolve(list)
+  }
+
+  @ReactMethod
   fun getCaptureStatus(promise: Promise) {
     promise.resolve(OfferOverlayRuntime.captureStatus)
   }
@@ -148,19 +191,38 @@ class OfferOverlayModule(
   @ReactMethod
   fun startOverlay(status: String, title: String, subtitle: String, promise: Promise) {
     if (!hasOverlayPermission()) {
+      Log.w(tag, "[KMONE_OCR] startOverlay denied: overlay permission missing")
       promise.resolve(false)
       return
     }
 
+    Log.d(tag, "[KMONE_OCR] startOverlay screenCaptureGranted=$screenCaptureGranted")
+    OfferOverlayRuntime.resetSession()
     OfferOverlayRuntime.overlayActive = true
     OfferOverlayRuntime.captureStatus = "capturing"
     OfferOverlayRuntime.setOverlayUpdateListener { nextStatus, nextTitle, nextSubtitle ->
-      reactContext.runOnUiQueueThread {
+      runOnMainThread {
         applyOverlayText(nextStatus, nextTitle, nextSubtitle)
       }
     }
-    ensureOverlayView()
-    applyOverlayText(status, title, subtitle)
+    runOnMainThread {
+      ensureOverlayView()
+      applyOverlayText("HIDDEN", title, subtitle)
+    }
+    if (screenCaptureGranted && screenCaptureResultCode != null && screenCaptureIntent != null) {
+      Log.d(tag, "[KMONE_OCR] starting OfferCaptureService")
+      OfferCaptureService.start(
+        reactContext,
+        screenCaptureResultCode,
+        screenCaptureIntent,
+      )
+    } else {
+      Log.w(tag, "[KMONE_OCR] startOverlay without screen capture token")
+      OfferOverlayRuntime.reportNativeError(
+        OfferOverlayRuntime.currentSourceApp,
+        "Permita novamente a captura de tela para reativar o OCR",
+      )
+    }
     promise.resolve(true)
   }
 
@@ -171,19 +233,27 @@ class OfferOverlayModule(
       return
     }
 
-    applyOverlayText(status, title, subtitle)
+    runOnMainThread {
+      applyOverlayText(status, title, subtitle)
+    }
     promise.resolve(true)
   }
 
   @ReactMethod
   fun hideOverlay(promise: Promise) {
-    removeOverlay()
+    Log.d(tag, "[KMONE_OCR] hideOverlay")
+    runOnMainThread {
+      removeOverlay()
+    }
     promise.resolve(true)
   }
 
   @ReactMethod
   fun stopOverlay(promise: Promise) {
-    removeOverlay()
+    Log.d(tag, "[KMONE_OCR] stopOverlay")
+    runOnMainThread {
+      removeOverlay()
+    }
     promise.resolve(true)
   }
 
@@ -196,13 +266,22 @@ class OfferOverlayModule(
     when (requestCode) {
       overlayRequestCode -> {
         val granted = hasOverlayPermission()
+        Log.d(tag, "[KMONE_OCR] overlay activityResult granted=$granted")
         pendingOverlayPromise?.resolve(granted)
         pendingOverlayPromise = null
       }
 
       captureRequestCode -> {
         val granted = resultCode == Activity.RESULT_OK && data != null
+        Log.d(tag, "[KMONE_OCR] capture activityResult granted=$granted resultCode=$resultCode hasData=${data != null}")
         screenCaptureGranted = granted
+        screenCaptureResultCode = if (granted) resultCode else null
+        screenCaptureIntent = if (granted && data != null) Intent(data) else null
+        if (!granted) {
+          Log.w(tag, "[KMONE_OCR] capture permission denied or canceled")
+          OfferCaptureService.stop(reactContext)
+          OfferOverlayRuntime.captureStatus = "idle"
+        }
         pendingCapturePromise?.resolve(granted)
         pendingCapturePromise = null
       }
@@ -249,6 +328,7 @@ class OfferOverlayModule(
 
   private fun ensureOverlayView() {
     if (overlayView != null) return
+    Log.d(tag, "[KMONE_OCR] ensureOverlayView creating view")
 
     val wm = reactContext.getSystemService(Context.WINDOW_SERVICE) as? WindowManager ?: return
     windowManager = wm
@@ -260,6 +340,8 @@ class OfferOverlayModule(
       setPadding(32, 22, 32, 22)
       text = "Radar ativo"
       elevation = 12f
+      alpha = 0f
+      visibility = View.GONE
     }
 
     val type =
@@ -282,11 +364,14 @@ class OfferOverlayModule(
       y = 180
     }
 
+    enableDrag(view, wm, params)
     wm.addView(view, params)
     overlayView = view
+    overlayParams = params
   }
 
   private fun removeOverlay() {
+    Log.d(tag, "[KMONE_OCR] removeOverlay")
     val wm = windowManager
     val view = overlayView
     if (wm != null && view != null) {
@@ -296,14 +381,39 @@ class OfferOverlayModule(
       }
     }
     overlayView = null
+    overlayParams = null
     windowManager = null
     OfferOverlayRuntime.overlayActive = false
     OfferOverlayRuntime.captureStatus = "idle"
     OfferOverlayRuntime.setOverlayUpdateListener(null)
+    OfferCaptureService.stop(reactContext)
+  }
+
+  companion object {
+    @Volatile
+    private var latestInstance: OfferOverlayModule? = null
+
+    fun invalidateScreenCapturePermission() {
+      latestInstance?.reactContext?.let { context ->
+        OfferCaptureService.stop(context)
+      }
+      OfferOverlayRuntime.resetSession()
+      latestInstance?.screenCaptureGranted = false
+      latestInstance?.screenCaptureResultCode = null
+      latestInstance?.screenCaptureIntent = null
+    }
   }
 
   private fun applyOverlayText(status: String, title: String, subtitle: String) {
     val view = overlayView ?: return
+    if (status.uppercase() == "HIDDEN") {
+      view.alpha = 0f
+      view.visibility = View.GONE
+      return
+    }
+
+    view.visibility = View.VISIBLE
+    view.alpha = 1f
     val bgColor = when (status.uppercase()) {
       "ACEITAR" -> 0xCC14532D.toInt()
       "TALVEZ" -> 0xCC78350F.toInt()
@@ -312,5 +422,49 @@ class OfferOverlayModule(
     }
     view.setBackgroundColor(bgColor)
     view.text = "$title\n$subtitle"
+  }
+
+  private fun enableDrag(
+    view: TextView,
+    wm: WindowManager,
+    params: WindowManager.LayoutParams,
+  ) {
+    view.setOnTouchListener(object : View.OnTouchListener {
+      private var startX = 0
+      private var startY = 0
+      private var touchStartX = 0f
+      private var touchStartY = 0f
+
+      override fun onTouch(v: View, event: MotionEvent): Boolean {
+        when (event.action) {
+          MotionEvent.ACTION_DOWN -> {
+            startX = params.x
+            startY = params.y
+            touchStartX = event.rawX
+            touchStartY = event.rawY
+            return true
+          }
+
+          MotionEvent.ACTION_MOVE -> {
+            params.x = startX + (event.rawX - touchStartX).toInt()
+            params.y = startY + (event.rawY - touchStartY).toInt()
+            try {
+              wm.updateViewLayout(view, params)
+            } catch (_: Throwable) {
+            }
+            return true
+          }
+        }
+        return false
+      }
+    })
+  }
+
+  private fun runOnMainThread(action: () -> Unit) {
+    if (Looper.myLooper() == Looper.getMainLooper()) {
+      action()
+    } else {
+      mainHandler.post { action() }
+    }
   }
 }
