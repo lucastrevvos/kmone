@@ -26,8 +26,12 @@ data class OfferCapture(
   val tripKm: Double? = null,
   val note: String? = null,
   val parsedTimeKmPairs: String? = null,
+  val parsedTimeDistancePairs: String? = null,
   val pickupPairSource: String? = null,
   val tripPairSource: String? = null,
+  val displayedEarningsPerKm: Double? = null,
+  val parserSourceApp: String? = null,
+  val parserWarnings: String? = null,
   val parserConfidence: Double? = null,
 )
 
@@ -155,6 +159,7 @@ private data class RoutePair(
 
 object OfferOverlayRuntime {
   private const val TAG = "KMONE_OCR"
+  private const val SHOW_RADAR_DEBUG_OVERLAY = false
   private data class ChannelSnapshot(val epochMs: Long, val channel: String, val lines: List<String>)
   private data class FrameSnapshot(
     val frameId: String,
@@ -218,6 +223,8 @@ object OfferOverlayRuntime {
 
   private var lastDigest: Int = 0
   private var lastCaptureEpochMs: Long = 0L
+
+  fun isDebugOverlayEnabled(): Boolean = SHOW_RADAR_DEBUG_OVERLAY
   private var lastHeartbeatEpochMs: Long = 0L
   private var lastDebugEpochMs: Long = 0L
   private var lastOcrEmptyEpochMs: Long = 0L
@@ -636,6 +643,11 @@ object OfferOverlayRuntime {
     lastPipelineRestartFailedAt = toIsoString(System.currentTimeMillis())
     pipelineRestartFailureCount += 1
     appendDebugRead(currentSourceApp, "ocr", "OCR_PERMISSION_REFRESH_REQUIRED | reason=$reason")
+    onOverlayUpdate?.invoke(
+      "NEEDS_PERMISSION_REFRESH",
+      "Captura precisa ser reativada",
+      "Permita a captura de tela novamente para continuar lendo ofertas.",
+    )
   }
 
   fun setPipelineLifecycleFlags(
@@ -860,6 +872,11 @@ object OfferOverlayRuntime {
     appendDebugRead(sourceApp, channel, lines.joinToString(" | ").take(1200))
     reportOcrTextDetected(sourceApp, frameId ?: (latestFrame?.frameId ?: "unknown"), lines.take(4).joinToString(" | ").take(220), normalizedRawText)
 
+    if (maybeNotifyOfferExpired(finalSourceApp, normalizedRawText)) {
+      reportParserReason(finalSourceApp, "oferta expirada ou indisponivel")
+      return
+    }
+
     maybeNotifyScanning(sourceApp)
 
     val combinedLines = mergeRecentSnapshots(lines, channel)
@@ -936,12 +953,17 @@ object OfferOverlayRuntime {
       .filter { abs(it.index - valueAnchorIndex) <= 20 }
       .ifEmpty { routePairs }
     val orderedPairs = routePairs.sortedBy { it.index }
-    val (pickupPair, tripPair) = splitPickupAndTripPairs(orderedPairs)
+    val (pickupPair, tripPair) = if (finalSourceApp == "99" && orderedPairs.size >= 2) {
+      Pair(orderedPairs[0], orderedPairs[1])
+    } else {
+      splitPickupAndTripPairs(orderedPairs)
+    }
     val primaryRoute = tripPair ?: pickupPair ?: mergeRoutePairs(nearbyPairs)
     val offeredValue = primaryMoney.second
-    val category = extractCategory(scopedLines)
+    val category = extractCategory(scopedLines) ?: if (finalSourceApp == "99") "99" else null
     val isExclusive = lowerScoped.any { it.contains("exclusivo") }
     val note = extractOfferNote(lowerScoped)
+    val displayedEarningsPerKm = extractDisplayedEarningsPerKm(scopedLines)
     val estimatedKm = when {
       tripPair != null -> tripPair.km
       pickupPair != null -> pickupPair.km
@@ -952,6 +974,7 @@ object OfferOverlayRuntime {
       pickupPair != null -> pickupPair.minutes
       else -> primaryRoute.minutes
     }
+    val parserWarnings = mutableListOf<String>()
 
     val digest = listOf(sourceApp, offeredValue, estimatedKm, estimatedMinutes).joinToString("|").hashCode()
     val nowMs = System.currentTimeMillis()
@@ -959,6 +982,15 @@ object OfferOverlayRuntime {
 
     lastDigest = digest
     lastCaptureEpochMs = nowMs
+    if (displayedEarningsPerKm != null) {
+      val calculatedTotalKm = max((pickupPair?.km ?: 0.0) + (tripPair?.km ?: estimatedKm), 0.1)
+      val calculatedDisplayedRsKm = offeredValue / calculatedTotalKm
+      if (abs(calculatedDisplayedRsKm - displayedEarningsPerKm) > 0.2) {
+        parserWarnings.add(
+          "rs/km divergente: tela=${"%.2f".format(Locale.US, displayedEarningsPerKm)} calculado=${"%.2f".format(Locale.US, calculatedDisplayedRsKm)}",
+        )
+      }
+    }
 
     val capture = OfferCapture(
       frameId = frameId ?: (latestFrame?.frameId ?: "unknown"),
@@ -978,8 +1010,14 @@ object OfferOverlayRuntime {
       parsedTimeKmPairs = orderedPairs.joinToString(" | ") {
         "${it.minutes.toInt()} min (${String.format(Locale.US, "%.1f", it.km)} km)@${it.index}"
       },
+      parsedTimeDistancePairs = orderedPairs.joinToString(" | ") {
+        "${String.format(Locale.US, "%.0f", it.minutes)} min (${formatDistanceForDebug(it.km)})@${it.index}"
+      },
       pickupPairSource = pickupPair?.let { "pair@index=${it.index}" },
       tripPairSource = tripPair?.let { "pair@index=${it.index}" },
+      displayedEarningsPerKm = displayedEarningsPerKm,
+      parserSourceApp = finalSourceApp,
+      parserWarnings = parserWarnings.takeIf { it.isNotEmpty() }?.joinToString(" | "),
       parserConfidence = when {
         pickupPair != null && tripPair != null -> 0.96
         pickupPair != null -> 0.82
@@ -1014,15 +1052,16 @@ object OfferOverlayRuntime {
       else -> "TALVEZ"
     }
     val title = when (status) {
-      "ACEITAR" -> "Vale a pena aceitar"
-      "TALVEZ" -> "Analise com cuidado"
-      else -> "Nao vale a pena"
+      "ACEITAR" -> "Vale muito a pena"
+      "TALVEZ" -> "Aceitavel"
+      else -> "Nao compensa"
     }
     val subtitle =
       "R$ ${"%.2f".format(Locale.US, offeredValue)} | " +
         "${"%.1f".format(Locale.US, estimatedKm)} km | " +
         "${estimatedMinutes.toInt()} min | " +
-        "R$ ${"%.2f".format(Locale.US, rsKm)}/km"
+        "R$ ${"%.2f".format(Locale.US, rsKm)}/km | " +
+        "R$ ${"%.2f".format(Locale.US, rsHora)}/h"
     onOverlayUpdate?.invoke(status, title, subtitle)
   }
 
@@ -1117,6 +1156,7 @@ object OfferOverlayRuntime {
     val regex = Regex("""r\$\s*(\d{1,3}(?:[.,]\d{1,2})?)""", RegexOption.IGNORE_CASE)
     return lines.mapIndexedNotNull { index, line ->
       if (looksLikeMapBonusLine(line)) return@mapIndexedNotNull null
+      if (looksLikePerKmMoneyLine(line) || looksLikeAdditionalFeeLine(line)) return@mapIndexedNotNull null
       val match = regex.find(line) ?: return@mapIndexedNotNull null
       val value = match.groupValues.getOrNull(1)
         ?.replace(".", "")
@@ -1135,30 +1175,51 @@ object OfferOverlayRuntime {
     return false
   }
 
+  private fun looksLikePerKmMoneyLine(line: String): Boolean {
+    val normalized = line.trim().lowercase(Locale.ROOT)
+    return normalized.contains("/km")
+  }
+
+  private fun looksLikeAdditionalFeeLine(line: String): Boolean {
+    val normalized = line.trim().lowercase(Locale.ROOT)
+    return normalized.contains("taxa de deslocamento") || normalized.contains("taxa deslocamento")
+  }
+
   private fun extractRoutePairs(lines: List<String>): List<RoutePair> {
     val results = mutableListOf<RoutePair>()
     val kmRegex = Regex("""(\d{1,3}(?:[.,]\d{1,2})?)\s*km""", RegexOption.IGNORE_CASE)
+    val meterRegex = Regex("""(\d{1,3}(?:[.,]\d{3})?|\d{1,4})\s*m\b""", RegexOption.IGNORE_CASE)
     val minRegex = Regex("""(\d{1,3})\s*(min|mins|minuto|minutos)""", RegexOption.IGNORE_CASE)
     val hourRegex = Regex("""(\d{1,2})\s*h(?:\s*e\s*(\d{1,2})\s*min)?""", RegexOption.IGNORE_CASE)
+    val inlinePairRegex =
+      Regex("""(\d{1,3})\s*(?:min|mins|minuto|minutos)\s*\(\s*([\d.,]+)\s*(km|m)\s*\)""", RegexOption.IGNORE_CASE)
 
     lines.forEachIndexed { index, line ->
       val normalizedLine = normalizeOcrNumericArtifacts(line)
-      val minutes = extractMinutes(normalizedLine, minRegex, hourRegex)
-      val km = kmRegex.find(normalizedLine)?.groupValues?.getOrNull(1)
-        ?.let { normalizeOcrNumericToken(it) }
-        ?.toDoubleOrNull()
+      val inlinePair = inlinePairRegex.find(normalizedLine)
+      if (inlinePair != null) {
+        val minutes = inlinePair.groupValues.getOrNull(1)?.toDoubleOrNull()
+        val distanceValue = inlinePair.groupValues.getOrNull(2)
+        val distanceUnit = inlinePair.groupValues.getOrNull(3)?.lowercase(Locale.ROOT)
+        val distanceKm = distanceValue?.let { parseDistanceTokenToKm(it, distanceUnit) }
+        if (minutes != null && distanceKm != null && distanceKm in 0.05..160.0 && minutes in 1.0..360.0) {
+          results.add(RoutePair(index = index, minutes = minutes, km = distanceKm))
+          return@forEachIndexed
+        }
+      }
 
-      if (km != null && minutes != null && km in 0.5..160.0 && minutes in 1.0..360.0) {
+      val minutes = extractMinutes(normalizedLine, minRegex, hourRegex)
+      val km = extractDistanceKm(normalizedLine, kmRegex, meterRegex)
+
+      if (km != null && minutes != null && km in 0.05..160.0 && minutes in 1.0..360.0) {
         results.add(RoutePair(index = index, minutes = minutes, km = km))
         return@forEachIndexed
       }
 
       if (minutes != null && km == null) {
         val nextKm = lines.getOrNull(index + 1)
-          ?.let { next -> kmRegex.find(normalizeOcrNumericArtifacts(next))?.groupValues?.getOrNull(1) }
-          ?.let { normalizeOcrNumericToken(it) }
-          ?.toDoubleOrNull()
-        if (nextKm != null && nextKm in 0.5..160.0 && minutes in 1.0..360.0) {
+          ?.let { next -> extractDistanceKm(normalizeOcrNumericArtifacts(next), kmRegex, meterRegex) }
+        if (nextKm != null && nextKm in 0.05..160.0 && minutes in 1.0..360.0) {
           results.add(RoutePair(index = index + 1, minutes = minutes, km = nextKm))
           return@forEachIndexed
         }
@@ -1168,7 +1229,7 @@ object OfferOverlayRuntime {
         val previousMinutes = lines.getOrNull(index - 1)?.let { previous ->
           extractMinutes(normalizeOcrNumericArtifacts(previous), minRegex, hourRegex)
         }
-        if (previousMinutes != null && km in 0.5..160.0 && previousMinutes in 1.0..360.0) {
+        if (previousMinutes != null && km in 0.05..160.0 && previousMinutes in 1.0..360.0) {
           results.add(RoutePair(index = index, minutes = previousMinutes, km = km))
           return@forEachIndexed
         }
@@ -1176,7 +1237,7 @@ object OfferOverlayRuntime {
         val nextMinutes = lines.getOrNull(index + 1)?.let { next ->
           extractMinutes(normalizeOcrNumericArtifacts(next), minRegex, hourRegex)
         }
-        if (nextMinutes != null && km in 0.5..160.0 && nextMinutes in 1.0..360.0) {
+        if (nextMinutes != null && km in 0.05..160.0 && nextMinutes in 1.0..360.0) {
           results.add(RoutePair(index = index + 1, minutes = nextMinutes, km = km))
         }
       }
@@ -1200,6 +1261,65 @@ object OfferOverlayRuntime {
     return normalizeOcrNumericArtifacts(token)
       .replace(",", ".")
       .replace(Regex("""[^\d.]"""), "")
+  }
+
+  private fun parseDistanceTokenToKm(token: String, unit: String?): Double? {
+    return when (unit?.lowercase(Locale.ROOT)) {
+      "m" -> parseMetersTokenToKm(token)
+      else -> normalizeOcrNumericToken(token).takeIf { it.isNotBlank() }?.toDoubleOrNull()
+    }
+  }
+
+  private fun parseMetersTokenToKm(token: String): Double? {
+    val normalizedToken = normalizeOcrNumericArtifacts(token).trim()
+    if (normalizedToken.isBlank()) return null
+    val digitsOnly = normalizedToken.replace(Regex("""[^\d]"""), "")
+    val hasSeparators = normalizedToken.contains('.') || normalizedToken.contains(',')
+    return when {
+      digitsOnly.isBlank() -> null
+      hasSeparators && digitsOnly.length >= 4 -> digitsOnly.toDoubleOrNull()?.div(1000.0)
+      !hasSeparators && digitsOnly.length >= 4 -> digitsOnly.toDoubleOrNull()?.div(1000.0)
+      else -> {
+        val normalized = normalizeOcrNumericToken(normalizedToken)
+        normalized.toDoubleOrNull()?.div(1000.0)
+      }
+    }
+  }
+
+  private fun extractDistanceKm(
+    line: String,
+    kmRegex: Regex,
+    meterRegex: Regex,
+  ): Double? {
+    val kmToken = kmRegex.find(line)?.groupValues?.getOrNull(1)
+    if (kmToken != null) {
+      return parseDistanceTokenToKm(kmToken, "km")
+    }
+    val meterToken = meterRegex.find(line)?.groupValues?.getOrNull(1)
+    if (meterToken != null) {
+      return parseDistanceTokenToKm(meterToken, "m")
+    }
+    return null
+  }
+
+  private fun extractDisplayedEarningsPerKm(lines: List<String>): Double? {
+    val regex = Regex("""r\$\s*([\d.,]+)\s*/km""", RegexOption.IGNORE_CASE)
+    return lines.firstNotNullOfOrNull { line ->
+      regex.find(line)
+        ?.groupValues
+        ?.getOrNull(1)
+        ?.replace(".", "")
+        ?.replace(",", ".")
+        ?.toDoubleOrNull()
+    }
+  }
+
+  private fun formatDistanceForDebug(distanceKm: Double): String {
+    return if (distanceKm < 1.0) {
+      "${(distanceKm * 1000.0).toInt()} m"
+    } else {
+      "${String.format(Locale.US, "%.3f", distanceKm).trimEnd('0').trimEnd('.')} km"
+    }
   }
 
   private fun extractMinutes(
@@ -1299,6 +1419,7 @@ object OfferOverlayRuntime {
   }
 
   private fun maybeNotifyScanning(sourceApp: String) {
+    if (!SHOW_RADAR_DEBUG_OVERLAY) return
     val now = System.currentTimeMillis()
     if (now - lastHeartbeatEpochMs < 3500) return
     lastHeartbeatEpochMs = now
@@ -1310,6 +1431,7 @@ object OfferOverlayRuntime {
   }
 
   private fun maybeNotifyDebug(sourceApp: String, lines: List<String>) {
+    if (!SHOW_RADAR_DEBUG_OVERLAY) return
     val now = System.currentTimeMillis()
     if (now - lastDebugEpochMs < 2500) return
     lastDebugEpochMs = now
@@ -1345,6 +1467,26 @@ object OfferOverlayRuntime {
       "Lendo ${sourceApp.uppercase(Locale.ROOT)}",
       interesting.take(3).joinToString(" | ").take(180),
     )
+  }
+
+  private fun maybeNotifyOfferExpired(sourceApp: String, rawText: String): Boolean {
+    if (!isRideApp(sourceApp)) return false
+    val lower = rawText.lowercase(Locale.ROOT)
+    val expired =
+      lower.contains("expir") ||
+        lower.contains("indispon") ||
+        lower.contains("nao esta mais disponivel") ||
+        lower.contains("não está mais disponível") ||
+        lower.contains("oferta nao esta mais disponivel") ||
+        lower.contains("oferta não está mais disponível")
+    if (!expired) return false
+
+    onOverlayUpdate?.invoke(
+      "OFFER_EXPIRED",
+      "Oferta expirada",
+      "A oferta nao esta mais disponivel.",
+    )
+    return true
   }
 
   fun getRecentDebugReads(): List<OfferDebugRead> {
@@ -1533,6 +1675,7 @@ object OfferOverlayRuntime {
   }
 
   private fun maybeNotifyFrameStats(frame: FrameSnapshot) {
+    if (!SHOW_RADAR_DEBUG_OVERLAY) return
     if (!overlayActive) return
     val subtitle =
       "OCR ${ocrIntervalMs}ms | Rx:$totalFramesReceived Px:$totalFramesProcessed Sk:$totalFramesSkippedByThrottle | " +

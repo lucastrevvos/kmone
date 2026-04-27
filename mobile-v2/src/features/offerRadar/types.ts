@@ -27,8 +27,12 @@ export type OfferCapturePayload = {
   tripKm?: number;
   note?: string | null;
   parsedTimeKmPairs?: string | null;
+  parsedTimeDistancePairs?: string | null;
   pickupPairSource?: string | null;
   tripPairSource?: string | null;
+  displayedEarningsPerKm?: number | null;
+  parserSourceApp?: string | null;
+  parserWarnings?: string | null;
   parserConfidence?: number | null;
 };
 
@@ -57,6 +61,25 @@ export type LatestUberOfferState = {
   pathFull?: string;
   pathCrop?: string;
   matchedValidCapture: boolean;
+};
+
+export type OfferDecisionStatus = "great" | "ok" | "bad" | "unknown";
+
+export type OfferDecision = {
+  status: OfferDecisionStatus;
+  label: string;
+  reason: string;
+  offeredValue: number;
+  totalKm: number;
+  totalMinutes: number;
+  earningsPerKm: number;
+  earningsPerHour: number;
+  pickupKm: number;
+  pickupMinutes: number;
+  tripKm: number;
+  tripMinutes: number;
+  targetEarningsPerKm: number;
+  targetEarningsPerHour: number;
 };
 
 export type OfferDebugState = {
