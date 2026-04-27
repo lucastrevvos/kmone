@@ -4,10 +4,12 @@ import { useOfferRadarStore } from "@state/useOfferRadarStore";
 import { useTrackingStore } from "@state/useTrackingStore";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { TrackingStartError } from "@core/infra/expoGps";
+import { evaluateOffer } from "@features/offerRadar/evaluateOffer";
 import { offerOverlayBridge } from "@features/offerRadar/overlayBridge";
 import { money } from "@utils/format";
 import { evaluateRideRadar } from "@utils/rideRadar";
 import { formatMoneyInputValue, parseSpokenMoney } from "@utils/speechMoney";
+import { useNavigation } from "@react-navigation/native";
 import { useEffect, useRef, useState } from "react";
 import {
   Alert,
@@ -30,6 +32,7 @@ import {
 } from "expo-speech-recognition";
 
 import type { FreeTrackingLabel, Ride } from "@core/domain/types";
+import type { OfferDecision } from "@features/offerRadar/types";
 import EmptyState from "src/components/EmptyState";
 import FieldCard from "src/components/FieldCard";
 import MetricCard from "src/components/MetricCard";
@@ -41,6 +44,7 @@ import UndoBanner from "src/components/UndoBanner";
 const ACCENT = "#10B981";
 const ACCENT_DARK = "#065F46";
 const SURFACE = "#F8FAFC";
+const SHOW_HOME_RADAR_DEBUG = false;
 type VoiceTarget = "manualBruto";
 type RadarSource = "Uber" | "99" | "Outros";
 type RadarSnapshot = {
@@ -53,6 +57,7 @@ type RadarSnapshot = {
 };
 
 export default function Home() {
+  const navigation = useNavigation<any>();
   const {
     rides,
     loadToday: loadRides,
@@ -66,7 +71,6 @@ export default function Home() {
     active: overlayActive,
     loading: overlayLoading,
     readiness: overlayReadiness,
-    lastCapture: rawLastCapture,
     lastValidUberCapture,
     latestUberOfferState,
     recentDebugReads,
@@ -77,7 +81,6 @@ export default function Home() {
     start: startOfferOverlay,
     setLastDecision,
   } = useOfferRadarStore();
-  const lastCapture = lastValidUberCapture ?? rawLastCapture;
   const {
     running,
     distanceMeters,
@@ -213,6 +216,20 @@ export default function Home() {
         settings,
       })
     : null;
+  const lastOfferDecision = evaluateOffer(lastValidUberCapture, settings);
+  const decisionCardStyle = getDecisionCardStyle(lastOfferDecision);
+  const legacyLastValidUberCapture =
+    lastValidUberCapture ?? {
+      frameId: "",
+      sourceApp: "unknown" as const,
+      offeredValue: 0,
+      estimatedKm: 0,
+      estimatedMinutes: 0,
+      capturedAt: "",
+      rawText: "",
+      category: null,
+    };
+  const lastCapture = legacyLastValidUberCapture;
 
   useEffect(() => {
     setLastDecision(radarResult?.status ?? null);
@@ -568,6 +585,59 @@ export default function Home() {
     }
   }
 
+  function formatOfferMetric(value: number, suffix: string) {
+    return `${value.toFixed(2)}${suffix}`;
+  }
+
+  function goToRadarSettings() {
+    navigation.navigate("Config");
+  }
+
+  function getDecisionCardStyle(decision: OfferDecision) {
+    switch (decision.status) {
+      case "great":
+        return {
+          backgroundColor: "#ECFDF5",
+          borderColor: "#86EFAC",
+          badgeBackground: "#166534",
+          badgeText: "#FFFFFF",
+          title: "#166534",
+          text: "#166534",
+          accent: "#065F46",
+        };
+      case "ok":
+        return {
+          backgroundColor: "#FFFBEB",
+          borderColor: "#FCD34D",
+          badgeBackground: "#92400E",
+          badgeText: "#FFFFFF",
+          title: "#92400E",
+          text: "#92400E",
+          accent: "#78350F",
+        };
+      case "bad":
+        return {
+          backgroundColor: "#FEF2F2",
+          borderColor: "#FCA5A5",
+          badgeBackground: "#B91C1C",
+          badgeText: "#FFFFFF",
+          title: "#B91C1C",
+          text: "#991B1B",
+          accent: "#7F1D1D",
+        };
+      default:
+        return {
+          backgroundColor: "#EFF6FF",
+          borderColor: "#BFDBFE",
+          badgeBackground: "#1D4ED8",
+          badgeText: "#FFFFFF",
+          title: "#1D4ED8",
+          text: "#1E3A8A",
+          accent: "#1E40AF",
+        };
+    }
+  }
+
   async function handleRequestOverlayPermission() {
     const granted = await requestOverlayPermission();
     await syncOfferOverlay();
@@ -840,7 +910,127 @@ export default function Home() {
             />
           )}
 
-          {lastValidUberCapture && lastCapture && (
+          <View
+            className="rounded-[24px] border p-4"
+            style={decisionCardStyle}
+          >
+            <View className="flex-row items-start justify-between">
+              <View className="flex-1 pr-3">
+                <Text className="text-xs font-semibold uppercase tracking-[1.4px] text-slate-500">
+                  Ultima oferta analisada
+                </Text>
+                <Text
+                  className="mt-2 text-2xl font-bold"
+                  style={{ color: decisionCardStyle.title }}
+                >
+                  {lastOfferDecision.label}
+                </Text>
+                <Text
+                  className="mt-2 text-3xl font-bold"
+                  style={{ color: decisionCardStyle.accent }}
+                >
+                  {lastValidUberCapture
+                    ? money(lastOfferDecision.offeredValue)
+                    : "Aguardando oferta"}
+                </Text>
+              </View>
+
+              <View
+                className="rounded-full px-3 py-2"
+                style={{ backgroundColor: decisionCardStyle.badgeBackground }}
+              >
+                <Text
+                  className="text-xs font-semibold"
+                  style={{ color: decisionCardStyle.badgeText }}
+                >
+                  {canSaveDetectedOffer ? "PRONTA" : lastValidUberCapture ? "SALVA" : "OCR"}
+                </Text>
+              </View>
+            </View>
+
+            {lastValidUberCapture ? (
+              <>
+                <View className="mt-4 flex-row gap-3">
+                  <View className="flex-1 rounded-[20px] bg-white/70 px-4 py-3">
+                    <Text className="text-xs font-semibold uppercase tracking-[1.2px] text-slate-500">
+                      R$/km
+                    </Text>
+                    <Text className="mt-1 text-xl font-bold text-slate-900">
+                      R$ {formatOfferMetric(lastOfferDecision.earningsPerKm, "")}
+                    </Text>
+                  </View>
+                  <View className="flex-1 rounded-[20px] bg-white/70 px-4 py-3">
+                    <Text className="text-xs font-semibold uppercase tracking-[1.2px] text-slate-500">
+                      R$/hora
+                    </Text>
+                    <Text className="mt-1 text-xl font-bold text-slate-900">
+                      R$ {formatOfferMetric(lastOfferDecision.earningsPerHour, "")}
+                    </Text>
+                  </View>
+                </View>
+
+                <View className="mt-4 gap-2">
+                  <Text className="text-sm text-slate-700">
+                    Total: {lastOfferDecision.totalKm.toFixed(1)} km •{" "}
+                    {Math.round(lastOfferDecision.totalMinutes)} min
+                  </Text>
+                  <Text className="text-sm text-slate-700">
+                    Pickup: {lastOfferDecision.pickupKm.toFixed(1)} km •{" "}
+                    {Math.round(lastOfferDecision.pickupMinutes)} min
+                  </Text>
+                  <Text className="text-sm text-slate-700">
+                    Viagem: {lastOfferDecision.tripKm.toFixed(1)} km •{" "}
+                    {Math.round(lastOfferDecision.tripMinutes)} min
+                  </Text>
+                  <Text className="text-sm text-slate-700">
+                    Categoria: {lastValidUberCapture.category ?? sourceToApp(lastValidUberCapture.sourceApp)}
+                  </Text>
+                  <Text className="text-sm text-slate-700">
+                    Meta: R$ {formatOfferMetric(lastOfferDecision.targetEarningsPerKm, "")}/km •
+                    {" "}R$ {formatOfferMetric(lastOfferDecision.targetEarningsPerHour, "")}/h
+                  </Text>
+                </View>
+
+                <Text
+                  className="mt-4 text-sm leading-6"
+                  style={{ color: decisionCardStyle.text }}
+                >
+                  {lastOfferDecision.reason}
+                </Text>
+
+                <View className="mt-4 flex-row gap-3">
+                  <Pressable
+                    onPress={handleSaveDetectedOffer}
+                    disabled={!canSaveDetectedOffer}
+                    className={`flex-1 items-center justify-center rounded-2xl px-4 py-4 ${
+                      !canSaveDetectedOffer ? "opacity-50" : ""
+                    }`}
+                    style={{ backgroundColor: "#0F172A" }}
+                  >
+                    <Text className="font-semibold text-white">
+                      Salvar corrida de app
+                    </Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => setRadarVisible(true)}
+                    className="items-center justify-center rounded-2xl border border-slate-300 px-4 py-4"
+                    style={{ backgroundColor: "#FFFFFFAA" }}
+                  >
+                    <Ionicons name="flash-outline" size={18} color="#0F172A" />
+                  </Pressable>
+                </View>
+              </>
+            ) : (
+              <Text
+                className="mt-4 text-sm leading-6"
+                style={{ color: decisionCardStyle.text }}
+              >
+                Aguardando uma oferta valida do Uber/99 para calcular R$/km, R$/hora e decidir se compensa.
+              </Text>
+            )}
+          </View>
+
+          {false && lastValidUberCapture && (
             <View
               className="rounded-[24px] border border-slate-200 bg-white p-4"
             >
@@ -850,12 +1040,12 @@ export default function Home() {
                     Ultima oferta valida do Uber/99
                   </Text>
                   <Text className="mt-2 text-2xl font-bold text-slate-900">
-                    {money(lastValidUberCapture.offeredValue ?? 0)}
+                    {money(legacyLastValidUberCapture.offeredValue ?? 0)}
                   </Text>
                   <Text className="mt-1 text-sm text-slate-500">
                     {(lastCapture.estimatedKm ?? 0).toFixed(1)} km •{" "}
                     {Math.round(lastCapture.estimatedMinutes ?? 0)} min •{" "}
-                    {sourceToApp(lastValidUberCapture.sourceApp)}
+                    {sourceToApp(legacyLastValidUberCapture.sourceApp)}
                   </Text>
                 </View>
 
@@ -895,7 +1085,8 @@ export default function Home() {
             </View>
           )}
 
-          {latestUberOfferState.status !== "idle" &&
+          {SHOW_HOME_RADAR_DEBUG &&
+            latestUberOfferState.status !== "idle" &&
             latestUberOfferState.status !== "valid" && (
               <View className="rounded-[24px] border border-amber-200 bg-amber-50 p-4">
                 <Text className="text-xs font-semibold uppercase tracking-[1.4px] text-amber-700">
@@ -915,7 +1106,7 @@ export default function Home() {
               </View>
             )}
 
-          {recentDebugReads.length > 0 && (
+          {SHOW_HOME_RADAR_DEBUG && recentDebugReads.length > 0 && (
             <View className="rounded-[24px] border border-slate-200 bg-white p-4">
               <View className="flex-row items-start justify-between">
                 <View className="flex-1 pr-3">
@@ -960,54 +1151,55 @@ export default function Home() {
           )}
 
           {!allRadarReady && (
-            <View
+            <Pressable
+              onPress={goToRadarSettings}
               className="rounded-[24px] border border-slate-200 bg-white p-4"
             >
               <View className="flex-row items-start justify-between">
                 <View className="flex-1 pr-3">
                   <Text className="text-xs font-semibold uppercase tracking-[1.4px] text-slate-400">
-                    Setup do radar
+                    Radar pendente
                   </Text>
                   <Text className="mt-2 text-xl font-bold text-slate-900">
-                    Falta concluir a configuracao
+                    Finalize a configuracao do radar
                   </Text>
                   <Text className="mt-2 text-sm text-slate-500">
-                    Overlay, acessibilidade e captura precisam ficar ativos para o radar funcionar de forma confiavel.
+                    Permissao para alerta sobre outros apps, leitura da tela e captura precisam estar ativas para o radar funcionar bem.
                   </Text>
                 </View>
 
                 <Pressable
-                  onPress={() => setOnboardingVisible(true)}
+                  onPress={goToRadarSettings}
                   className="rounded-full px-3 py-2"
                   style={{ backgroundColor: "#E8FFF5" }}
                 >
                   <Text className="text-xs font-semibold text-emerald-800">
-                    Revisar
+                    Resolver agora
                   </Text>
                 </Pressable>
               </View>
 
               <View className="mt-4 flex-row flex-wrap justify-between">
                 <MetricCard
-                  label="Overlay"
+                  label="Alerta"
                   value={overlayReadiness.overlayPermissionGranted ? "OK" : "Pendente"}
-                  note="Sobre outros apps"
+                  note="Mostrar sobre outros apps"
                   emphasis={overlayReadiness.overlayPermissionGranted ? "success" : "warning"}
                 />
                 <MetricCard
-                  label="Acessib."
+                  label="Leitura"
                   value={overlayReadiness.accessibilityPermissionGranted ? "OK" : "Pendente"}
-                  note="Leitura da tela"
+                  note="Permissao de leitura da tela"
                   emphasis={overlayReadiness.accessibilityPermissionGranted ? "success" : "warning"}
                 />
                 <MetricCard
                   label="Captura"
                   value={overlayReadiness.screenCapturePermissionGranted ? "OK" : "Pendente"}
-                  note="Pode se perder"
+                  note="Permissao de captura necessaria"
                   emphasis={overlayReadiness.screenCapturePermissionGranted ? "success" : "warning"}
                 />
               </View>
-            </View>
+            </Pressable>
           )}
 
           {undoVisible && (

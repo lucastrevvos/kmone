@@ -64,7 +64,15 @@ const nativeModule = NativeModules.OfferOverlayModule as
   | OfferOverlayNativeModule
   | undefined;
 
-console.log("[KMONE_OCR][JS] NativeModules.OfferOverlayModule =", nativeModule);
+const ENABLE_RADAR_JS_DEBUG_LOGS = false;
+
+function radarLog(...args: unknown[]) {
+  if (__DEV__ && ENABLE_RADAR_JS_DEBUG_LOGS) {
+    console.log(...args);
+  }
+}
+
+radarLog("[KMONE_OCR][JS] NativeModules.OfferOverlayModule =", nativeModule);
 
 function normalizeOfferSourceApp(sourceApp: string | null | undefined): OfferSourceApp {
   if (sourceApp === "uber" || sourceApp === "99") {
@@ -147,7 +155,7 @@ async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, fallback: 
 
 export const offerOverlayBridge = {
   isSupported() {
-    console.log("[KMONE_OCR][JS] isSupported check", {
+    radarLog("[KMONE_OCR][JS] isSupported check", {
       platform: Platform.OS,
       hasNativeModule: !!nativeModule,
     });
@@ -155,57 +163,57 @@ export const offerOverlayBridge = {
   },
 
   async getState(): Promise<OverlayBridgeState> {
-    console.log("[KMONE_OCR][JS] getState start", {
+    radarLog("[KMONE_OCR][JS] getState start", {
       hasNativeModule: !!nativeModule,
       nativeKeys: nativeModule ? Object.keys(nativeModule) : [],
     });
     const overlayPermissionGranted =
       Platform.OS === "android" &&
       !!nativeModule?.isOverlayPermissionGranted
-        ? await (console.log("[KMONE_OCR][JS] calling isOverlayPermissionGranted"),
+        ? await (radarLog("[KMONE_OCR][JS] calling isOverlayPermissionGranted"),
           nativeModule.isOverlayPermissionGranted())
         : false;
     const accessibilityPermissionGranted =
       Platform.OS === "android" &&
       !!nativeModule?.isAccessibilityPermissionGranted
-        ? await (console.log("[KMONE_OCR][JS] calling isAccessibilityPermissionGranted"),
+        ? await (radarLog("[KMONE_OCR][JS] calling isAccessibilityPermissionGranted"),
           nativeModule.isAccessibilityPermissionGranted())
         : false;
     const active =
       Platform.OS === "android" && !!nativeModule?.isOverlayActive
-        ? await (console.log("[KMONE_OCR][JS] calling isOverlayActive"),
+        ? await (radarLog("[KMONE_OCR][JS] calling isOverlayActive"),
           nativeModule.isOverlayActive())
         : false;
     const screenCapturePermissionGranted =
       Platform.OS === "android" &&
       !!nativeModule?.isScreenCapturePermissionGranted
-        ? await (console.log("[KMONE_OCR][JS] calling isScreenCapturePermissionGranted"),
+        ? await (radarLog("[KMONE_OCR][JS] calling isScreenCapturePermissionGranted"),
           nativeModule.isScreenCapturePermissionGranted())
         : false;
     const lastCapture =
       Platform.OS === "android" && !!nativeModule?.getLatestCapture
-        ? await (console.log("[KMONE_OCR][JS] calling getLatestCapture"),
+        ? await (radarLog("[KMONE_OCR][JS] calling getLatestCapture"),
           nativeModule.getLatestCapture())
         : null;
     const captureStatus =
       Platform.OS === "android" && !!nativeModule?.getCaptureStatus
-        ? await (console.log("[KMONE_OCR][JS] calling getCaptureStatus"),
+        ? await (radarLog("[KMONE_OCR][JS] calling getCaptureStatus"),
           nativeModule.getCaptureStatus())
         : "idle";
     const recentDebugReads =
       Platform.OS === "android" && !!nativeModule?.getRecentDebugReads
-        ? await (console.log("[KMONE_OCR][JS] calling getRecentDebugReads"),
+        ? await (radarLog("[KMONE_OCR][JS] calling getRecentDebugReads"),
           nativeModule.getRecentDebugReads())
         : [];
     const debugState =
       Platform.OS === "android" && !!nativeModule?.getDebugState
-        ? await (console.log("[KMONE_OCR][JS] calling getDebugState"),
+        ? await (radarLog("[KMONE_OCR][JS] calling getDebugState"),
           nativeModule.getDebugState())
         : null;
     const latestUberOfferState = buildLatestUberOfferState(debugState);
     const lastValidUberCapture = getLastValidUberCapture(lastCapture, debugState);
 
-    console.log("[KMONE_OCR][JS] getState result", {
+    radarLog("[KMONE_OCR][JS] getState result", {
       overlayPermissionGranted,
       accessibilityPermissionGranted,
       screenCapturePermissionGranted,
@@ -236,7 +244,7 @@ export const offerOverlayBridge = {
   },
 
   async requestOverlayPermission() {
-    console.log("[KMONE_OCR][JS] requestOverlayPermission");
+    radarLog("[KMONE_OCR][JS] requestOverlayPermission");
     if (Platform.OS !== "android") return false;
     if (!nativeModule?.openOverlayPermissionSettings) {
       await Linking.openSettings();
@@ -250,7 +258,7 @@ export const offerOverlayBridge = {
   },
 
   async requestAccessibilityPermission() {
-    console.log("[KMONE_OCR][JS] requestAccessibilityPermission");
+    radarLog("[KMONE_OCR][JS] requestAccessibilityPermission");
     if (Platform.OS !== "android") return false;
     if (!nativeModule?.openAccessibilityPermissionSettings) {
       await Linking.openSettings();
@@ -264,7 +272,7 @@ export const offerOverlayBridge = {
   },
 
   async requestScreenCapturePermission() {
-    console.log("[KMONE_OCR][JS] requestScreenCapturePermission");
+    radarLog("[KMONE_OCR][JS] requestScreenCapturePermission");
     if (Platform.OS !== "android") return false;
     if (!nativeModule?.requestScreenCapturePermission) return false;
 
@@ -276,7 +284,7 @@ export const offerOverlayBridge = {
   },
 
   async syncRadarConfig(settings: Settings) {
-    console.log("[KMONE_OCR][JS] syncRadarConfig", settings);
+    radarLog("[KMONE_OCR][JS] syncRadarConfig", settings);
     if (Platform.OS !== "android") return false;
     if (!nativeModule?.setRadarConfig) return false;
 
@@ -288,7 +296,7 @@ export const offerOverlayBridge = {
   },
 
   async start() {
-    console.log("[KMONE_OCR][JS] start overlay");
+    radarLog("[KMONE_OCR][JS] start overlay");
     if (Platform.OS !== "android") return false;
     if (!nativeModule?.startOverlay) return false;
 
@@ -300,7 +308,7 @@ export const offerOverlayBridge = {
   },
 
   async stop() {
-    console.log("[KMONE_OCR][JS] stop overlay");
+    radarLog("[KMONE_OCR][JS] stop overlay");
     if (Platform.OS !== "android") return true;
     if (!nativeModule?.stopOverlay) return true;
     return nativeModule.stopOverlay();
@@ -311,7 +319,7 @@ export const offerOverlayBridge = {
     title: string;
     subtitle: string;
   }) {
-    console.log("[KMONE_OCR][JS] updatePreview", input);
+    radarLog("[KMONE_OCR][JS] updatePreview", input);
     if (Platform.OS !== "android") return false;
     if (!nativeModule?.updateOverlay) return false;
 
@@ -319,7 +327,7 @@ export const offerOverlayBridge = {
   },
 
   async hide() {
-    console.log("[KMONE_OCR][JS] hide overlay");
+    radarLog("[KMONE_OCR][JS] hide overlay");
     if (Platform.OS !== "android") return false;
     if (!nativeModule?.hideOverlay) return false;
 

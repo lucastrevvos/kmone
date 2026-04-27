@@ -11,6 +11,7 @@ import SectionHeader from "src/components/SectionHeader";
 
 const ACCENT = "#10B981";
 const ACCENT_DARK = "#065F46";
+const SHOW_OCR_RUNTIME_DEBUG_PANEL = false;
 
 export default function Configuracoes() {
   const { settings, load, save, loading } = useSettingsStore();
@@ -41,18 +42,9 @@ export default function Configuracoes() {
     readiness.screenCapturePermissionGranted;
 
   useEffect(() => {
-    console.log("[KMONE_OCR][JS] Configuracoes screen mounted");
     load();
     syncOfferRadar();
   }, []);
-
-  useEffect(() => {
-    console.log("[KMONE_OCR][JS] Configuracoes radar state", {
-      supported,
-      readiness,
-      allRadarReady,
-    });
-  }, [supported, readiness, allRadarReady]);
 
   useEffect(() => {
     setMetaBruta(String(settings.metaDiariaBruta));
@@ -61,6 +53,17 @@ export default function Configuracoes() {
     setRadarRskm(String(settings.radarMinRSKm));
     setRadarRshora(String(settings.radarMinRSHora));
   }, [settings]);
+
+  const captureButtonLabel = readiness.screenCapturePermissionGranted
+    ? "Captura ativa"
+    : debugState?.needsScreenCapturePermissionRefresh
+      ? "Reativar captura"
+      : "Ativar captura";
+  const captureActionLabel = readiness.screenCapturePermissionGranted
+    ? "Reativar captura da tela"
+    : debugState?.needsScreenCapturePermissionRefresh
+      ? "Reativar captura da tela"
+      : "Ativar captura da tela";
 
   async function onSalvar() {
     const mb = Number(metaBruta.replace(",", "."));
@@ -183,6 +186,22 @@ export default function Configuracoes() {
       console.error("[KMONE_OCR][JS] share debug error", error);
       Alert.alert("Debug OCR", JSON.stringify(payload, null, 2));
     }
+  }
+
+  function handleRequestScreenCapturePermission() {
+    Alert.alert(
+      "Na proxima tela, escolha tela inteira",
+      "O Android vai perguntar o que voce quer compartilhar. Para o radar funcionar, selecione 'Compartilhar a tela inteira' e toque em 'Proxima' ou 'Iniciar agora'.",
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Entendi, continuar",
+          onPress: () => {
+            void requestScreenCapturePermission();
+          },
+        },
+      ],
+    );
   }
 
   return (
@@ -377,26 +396,43 @@ export default function Configuracoes() {
 
         <View className="mt-4 gap-3">
           <SetupCard
-            title="Overlay sobre outros apps"
+            title="Alerta sobre outros apps"
             description="Permite mostrar o popup por cima do Uber e 99."
             done={readiness.overlayPermissionGranted}
-            actionLabel="Ativar overlay"
+            actionLabel="Ativar alerta"
             onPress={requestOverlayPermission}
           />
           <SetupCard
-            title="Acessibilidade"
-            description="Ajuda o app a perceber estados da interface."
+            title="Leitura da tela"
+            description="Ajuda o app a perceber mudancas importantes na interface."
             done={readiness.accessibilityPermissionGranted}
-            actionLabel="Ativar acessibilidade"
+            actionLabel="Ativar leitura da tela"
             onPress={requestAccessibilityPermission}
           />
+          <View className="rounded-[22px] border border-slate-200 bg-slate-50 px-4 py-4">
+            <Text className="text-base font-semibold text-slate-900">
+              Permissao de captura da tela
+            </Text>
+            <Text className="mt-2 text-sm leading-6 text-slate-600">
+              Para analisar ofertas do Uber e 99, o KM One precisa enxergar
+              temporariamente a tela enquanto o radar esta ativo. Quando o
+              Android perguntar, escolha "Compartilhar a tela inteira". Assim
+              conseguimos ler valor, distancia e tempo da corrida para calcular
+              se ela compensa.
+            </Text>
+            <Text className="mt-2 text-xs leading-5 text-slate-500">
+              O radar nao aceita corridas sozinho e nao controla outros apps.
+              Ele apenas le a oferta visivel para calcular R$/km e R$/hora.
+            </Text>
+          </View>
           <SetupCard
-            title="Captura de tela"
-            description="Obrigatoria para o OCR. Se desligar, o radar para de capturar oferta."
+            title="Permissao de captura necessaria"
+            description="Ative a captura da tela e escolha compartilhar a tela inteira para o radar ler as ofertas."
             done={readiness.screenCapturePermissionGranted}
-            actionLabel="Reativar captura"
-            onPress={requestScreenCapturePermission}
+            actionLabel={captureActionLabel}
+            onPress={handleRequestScreenCapturePermission}
             danger={!readiness.screenCapturePermissionGranted}
+            doneLabel={captureButtonLabel}
           />
         </View>
       </View>
@@ -431,19 +467,19 @@ export default function Configuracoes() {
             note="Bridge preparada"
           />
           <MetricCard
-            label="Overlay"
+            label="Alerta"
             value={readiness.overlayPermissionGranted ? "OK" : "Pendente"}
             note="Sobre outros apps"
           />
           <MetricCard
-            label="Acessibilidade"
+            label="Leitura"
             value={readiness.accessibilityPermissionGranted ? "OK" : "Pendente"}
-            note="Leitura da UI"
+            note="Permissao de leitura da tela"
           />
           <MetricCard
             label="Captura"
             value={readiness.screenCapturePermissionGranted ? "OK" : "Pendente"}
-            note="OCR/MediaProjection"
+            note="Permissao de captura necessaria"
           />
         </View>
 
@@ -453,7 +489,7 @@ export default function Configuracoes() {
             className="rounded-2xl border border-slate-300 px-4 py-4"
           >
             <Text className="font-semibold text-slate-700">
-              Solicitar permissao de overlay
+              Solicitar permissao para alerta sobre outros apps
             </Text>
           </Pressable>
           <Pressable
@@ -461,11 +497,25 @@ export default function Configuracoes() {
             className="rounded-2xl border border-slate-300 px-4 py-4"
           >
             <Text className="font-semibold text-slate-700">
-              Solicitar permissao de acessibilidade
+              Solicitar permissao de leitura da tela
             </Text>
           </Pressable>
+          <View className="rounded-[22px] border border-sky-200 bg-sky-50 px-4 py-4">
+            <Text className="text-sm font-semibold text-sky-900">
+              Permissao de captura da tela
+            </Text>
+            <Text className="mt-2 text-sm leading-6 text-sky-900">
+              Antes do aviso do Android, prepare-se para escolher
+              "Compartilhar a tela inteira". Essa permissao deixa o KM One ler
+              as ofertas visiveis do Uber e da 99 para calcular se a corrida
+              compensa.
+            </Text>
+            <Text className="mt-2 text-xs leading-5 text-sky-700">
+              Voce pode reativar ou interromper essa permissao quando quiser.
+            </Text>
+          </View>
           <Pressable
-            onPress={requestScreenCapturePermission}
+            onPress={handleRequestScreenCapturePermission}
             className="rounded-2xl border border-slate-300 px-4 py-4"
             style={{
               backgroundColor: readiness.screenCapturePermissionGranted
@@ -485,21 +535,22 @@ export default function Configuracoes() {
               }}
             >
               {readiness.screenCapturePermissionGranted
-                ? "Revisar permissao de captura"
-                : "Reativar permissao de captura"}
+                ? "Reativar captura da tela"
+                : "Ativar captura da tela"}
             </Text>
           </Pressable>
         </View>
       </View>
 
-      <View
-        className="mt-6 rounded-[28px] border border-slate-200 p-5"
-        style={{ backgroundColor: "#FFFFFF" }}
-      >
-        <SectionHeader eyebrow="Debug" title="OCR Runtime" />
-        <Text className="mt-3 text-sm text-slate-600">
-          Painel temporario para inspecionar OCR, parser e frame salvo sem depender do Logcat.
-        </Text>
+      {SHOW_OCR_RUNTIME_DEBUG_PANEL && (
+        <View
+          className="mt-6 rounded-[28px] border border-slate-200 p-5"
+          style={{ backgroundColor: "#FFFFFF" }}
+        >
+          <SectionHeader eyebrow="Area tecnica" title="OCR Runtime" />
+          <Text className="mt-3 text-sm text-slate-600">
+            Painel tecnico de diagnostico para OCR, parser, frames e estado interno do radar. Nao faz parte do fluxo normal do motorista.
+          </Text>
 
         <View className="mt-4 rounded-[22px] border border-slate-200 bg-slate-50 px-4 py-4">
           <Text className="text-xs font-semibold uppercase tracking-[1.2px] text-slate-400">
@@ -852,14 +903,15 @@ export default function Configuracoes() {
           )}
         </View>
 
-        <Pressable
-          onPress={handleCopyDebug}
-          className="mt-4 items-center justify-center rounded-2xl px-4 py-4"
-          style={{ backgroundColor: "#0F172A" }}
-        >
-          <Text className="font-semibold text-white">Copiar Debug OCR</Text>
-        </Pressable>
-      </View>
+          <Pressable
+            onPress={handleCopyDebug}
+            className="mt-4 items-center justify-center rounded-2xl px-4 py-4"
+            style={{ backgroundColor: "#0F172A" }}
+          >
+            <Text className="font-semibold text-white">Copiar Debug OCR</Text>
+          </Pressable>
+        </View>
+      )}
     </ScrollView>
   );
 }
@@ -871,6 +923,7 @@ function SetupCard({
   actionLabel,
   onPress,
   danger = false,
+  doneLabel = "OK",
 }: {
   title: string;
   description: string;
@@ -878,6 +931,7 @@ function SetupCard({
   actionLabel: string;
   onPress: () => void | Promise<unknown>;
   danger?: boolean;
+  doneLabel?: string;
 }) {
   return (
     <View
@@ -898,7 +952,7 @@ function SetupCard({
           style={{ backgroundColor: done ? "#166534" : danger ? "#B91C1C" : "#334155" }}
         >
           <Text className="text-xs font-semibold text-white">
-            {done ? "OK" : "PENDENTE"}
+            {done ? doneLabel : "PENDENTE"}
           </Text>
         </View>
       </View>
