@@ -2,7 +2,7 @@
   "expo": {
     "name": "KM One",
     "slug": "km-one",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -42,7 +42,7 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.lucastrevvos.kmone",
-      "versionCode": 2,
+      "versionCode": 3,
       "runtimeVersion": "1.0.0"
     },
     "web": {
@@ -63,7 +63,9 @@
         {
           "microphonePermission": "O KM One usa o microfone para capturar o valor falado da corrida.",
           "speechRecognitionPermission": "O KM One usa o reconhecimento de voz para transformar sua fala em valor da corrida.",
-          "androidSpeechServicePackages": ["com.google.android.googlequicksearchbox"]
+          "androidSpeechServicePackages": [
+            "com.google.android.googlequicksearchbox"
+          ]
         }
       ],
       [
