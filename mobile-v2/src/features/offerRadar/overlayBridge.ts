@@ -6,6 +6,8 @@ import type {
   OfferCaptureStatus,
   OfferDebugState,
   OfferDebugRead,
+  LatestUberOfferState,
+  OfferSourceApp,
   OverlayReadiness,
 } from "./types";
 
@@ -17,6 +19,8 @@ export type OverlayBridgeState = {
   lastCapture: OfferCapturePayload | null;
   recentDebugReads: OfferDebugRead[];
   debugState: OfferDebugState | null;
+  latestUberOfferState: LatestUberOfferState;
+  lastValidUberCapture: OfferCapturePayload | null;
 };
 
 const defaultReadiness: OverlayReadiness = {
@@ -61,6 +65,69 @@ const nativeModule = NativeModules.OfferOverlayModule as
   | undefined;
 
 console.log("[KMONE_OCR][JS] NativeModules.OfferOverlayModule =", nativeModule);
+
+function normalizeOfferSourceApp(sourceApp: string | null | undefined): OfferSourceApp {
+  if (sourceApp === "uber" || sourceApp === "99") {
+    return sourceApp;
+  }
+
+  return "unknown";
+}
+
+function buildLatestUberOfferState(
+  debugState: OfferDebugState | null,
+): LatestUberOfferState {
+  const latestFrameId = debugState?.latestUberFrameId;
+  const lastValidCapture = debugState?.lastUberCapture ?? null;
+  const matchedValidCapture =
+    !!latestFrameId && latestFrameId === lastValidCapture?.frameId;
+
+  if (!latestFrameId) {
+    return {
+      status: "idle",
+      sourceApp: "unknown",
+      matchedValidCapture: false,
+    };
+  }
+
+  const processedAt = debugState?.latestUberFrameProcessedAt;
+  const parserReason = debugState?.latestUberFrameParserReason;
+  const status = matchedValidCapture
+    ? "valid"
+    : !processedAt
+      ? "detected"
+      : parserReason
+        ? "invalid"
+        : "processing";
+
+  return {
+    status,
+    frameId: latestFrameId,
+    capturedAt: debugState?.latestUberFrameCapturedAt,
+    processedAt,
+    sourceApp: normalizeOfferSourceApp(debugState?.latestUberFrameSourceApp),
+    parserReason,
+    ocrText: debugState?.latestUberFrameOcrText,
+    pathFull: debugState?.latestUberFramePathFull,
+    pathCrop: debugState?.latestUberFramePathCrop,
+    matchedValidCapture,
+  };
+}
+
+function getLastValidUberCapture(
+  lastCapture: OfferCapturePayload | null,
+  debugState: OfferDebugState | null,
+): OfferCapturePayload | null {
+  if (debugState?.lastUberCapture) {
+    return debugState.lastUberCapture;
+  }
+
+  if (lastCapture?.sourceApp === "uber" || lastCapture?.sourceApp === "99") {
+    return lastCapture;
+  }
+
+  return null;
+}
 
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, fallback: T) {
   let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
@@ -135,6 +202,8 @@ export const offerOverlayBridge = {
         ? await (console.log("[KMONE_OCR][JS] calling getDebugState"),
           nativeModule.getDebugState())
         : null;
+    const latestUberOfferState = buildLatestUberOfferState(debugState);
+    const lastValidUberCapture = getLastValidUberCapture(lastCapture, debugState);
 
     console.log("[KMONE_OCR][JS] getState result", {
       overlayPermissionGranted,
@@ -144,6 +213,8 @@ export const offerOverlayBridge = {
       captureStatus,
       recentDebugReadsCount: recentDebugReads.length,
       debugState,
+      latestUberOfferState,
+      lastValidUberCapture,
     });
 
     return {
@@ -159,6 +230,8 @@ export const offerOverlayBridge = {
       lastCapture,
       recentDebugReads,
       debugState,
+      latestUberOfferState,
+      lastValidUberCapture,
     };
   },
 

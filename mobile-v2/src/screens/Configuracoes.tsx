@@ -19,6 +19,8 @@ export default function Configuracoes() {
     captureStatus,
     readiness,
     lastCapture,
+    lastValidUberCapture,
+    latestUberOfferState,
     recentDebugReads,
     debugState,
     sync: syncOfferRadar,
@@ -85,6 +87,8 @@ export default function Configuracoes() {
     const payload = {
       captureStatus,
       lastCapture,
+      lastValidUberCapture,
+      latestUberOfferState,
       debugState,
       recentDebugReads,
       sessionId: debugState?.sessionId,
@@ -804,6 +808,15 @@ export default function Configuracoes() {
           </Text>
         </View>
 
+        <View className="mt-4 rounded-[22px] border border-amber-200 bg-amber-50 px-4 py-4">
+          <Text className="text-xs font-semibold uppercase tracking-[1.2px] text-amber-700">
+            latestUberOfferState
+          </Text>
+          <Text className="mt-2 text-sm text-amber-900">
+            {JSON.stringify(latestUberOfferState, null, 2)}
+          </Text>
+        </View>
+
         <View className="mt-4 rounded-[22px] border border-slate-200 bg-slate-50 px-4 py-4">
           <Text className="text-xs font-semibold uppercase tracking-[1.2px] text-slate-400">
             Ultima captura estruturada geral
@@ -818,8 +831,8 @@ export default function Configuracoes() {
             Ultima captura estruturada Uber/99
           </Text>
           <Text className="mt-2 text-sm text-emerald-900">
-            {debugState?.lastUberCapture
-              ? JSON.stringify(debugState.lastUberCapture, null, 2)
+            {lastValidUberCapture
+              ? JSON.stringify(lastValidUberCapture, null, 2)
               : "sem captura estruturada Uber/99"}
           </Text>
         </View>

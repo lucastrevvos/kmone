@@ -39,6 +39,26 @@ export type OfferDebugRead = {
   rawText: string;
 };
 
+export type LatestUberOfferStatus =
+  | "idle"
+  | "detected"
+  | "processing"
+  | "valid"
+  | "invalid";
+
+export type LatestUberOfferState = {
+  status: LatestUberOfferStatus;
+  frameId?: string;
+  capturedAt?: string;
+  processedAt?: string;
+  sourceApp: OfferSourceApp;
+  parserReason?: string;
+  ocrText?: string;
+  pathFull?: string;
+  pathCrop?: string;
+  matchedValidCapture: boolean;
+};
+
 export type OfferDebugState = {
   captureStatus: string;
   currentSourceApp: OfferSourceApp;

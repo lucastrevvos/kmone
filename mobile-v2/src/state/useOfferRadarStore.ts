@@ -7,6 +7,7 @@ import type {
   OfferCaptureStatus,
   OfferDebugState,
   OfferDebugRead,
+  LatestUberOfferState,
   OfferSourceApp,
   OverlayReadiness,
 } from "@features/offerRadar/types";
@@ -21,6 +22,8 @@ type OfferRadarStore = {
   lastCapture: OfferCapturePayload | null;
   recentDebugReads: OfferDebugRead[];
   debugState: OfferDebugState | null;
+  latestUberOfferState: LatestUberOfferState;
+  lastValidUberCapture: OfferCapturePayload | null;
   lastDecision: OfferAnalysisStatus | null;
   sync(): Promise<void>;
   requestOverlayPermission(): Promise<boolean>;
@@ -48,6 +51,12 @@ export const useOfferRadarStore = create<OfferRadarStore>((set, get) => ({
   lastCapture: null,
   recentDebugReads: [],
   debugState: null,
+  latestUberOfferState: {
+    status: "idle",
+    sourceApp: "unknown",
+    matchedValidCapture: false,
+  },
+  lastValidUberCapture: null,
   lastDecision: null,
 
   async sync() {
@@ -62,7 +71,12 @@ export const useOfferRadarStore = create<OfferRadarStore>((set, get) => ({
         lastCapture: state.lastCapture,
         recentDebugReads: state.recentDebugReads,
         debugState: state.debugState,
-        sourceApp: state.lastCapture?.sourceApp ?? "unknown",
+        latestUberOfferState: state.latestUberOfferState,
+        lastValidUberCapture: state.lastValidUberCapture,
+        sourceApp:
+          state.lastValidUberCapture?.sourceApp ??
+          state.lastCapture?.sourceApp ??
+          "unknown",
       });
     } finally {
       set({ loading: false });

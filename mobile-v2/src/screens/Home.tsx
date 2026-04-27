@@ -66,7 +66,9 @@ export default function Home() {
     active: overlayActive,
     loading: overlayLoading,
     readiness: overlayReadiness,
-    lastCapture,
+    lastCapture: rawLastCapture,
+    lastValidUberCapture,
+    latestUberOfferState,
     recentDebugReads,
     sync: syncOfferOverlay,
     requestOverlayPermission,
@@ -75,6 +77,7 @@ export default function Home() {
     start: startOfferOverlay,
     setLastDecision,
   } = useOfferRadarStore();
+  const lastCapture = lastValidUberCapture ?? rawLastCapture;
   const {
     running,
     distanceMeters,
@@ -517,12 +520,12 @@ export default function Home() {
     );
   }
 
-  const lastCaptureId = lastCapture?.capturedAt ?? null;
+  const lastCaptureId = lastValidUberCapture?.capturedAt ?? null;
   const canSaveDetectedOffer =
-    !!lastCapture &&
+    !!lastValidUberCapture &&
     !!lastCaptureId &&
-    (lastCapture.offeredValue ?? 0) > 0 &&
-    (lastCapture.estimatedKm ?? 0) > 0 &&
+    (lastValidUberCapture.offeredValue ?? 0) > 0 &&
+    (lastValidUberCapture.estimatedKm ?? 0) > 0 &&
     !savedOfferIds.includes(lastCaptureId);
 
   function sourceToApp(source: "uber" | "99" | "unknown"): "Uber" | "99" | "Outros" {
@@ -532,13 +535,13 @@ export default function Home() {
   }
 
   async function handleSaveDetectedOffer() {
-    if (!lastCapture || !lastCaptureId) {
+    if (!lastValidUberCapture || !lastCaptureId) {
       showToast("Nenhuma oferta pronta para salvar");
       return;
     }
 
-    const value = lastCapture.offeredValue ?? 0;
-    const km = lastCapture.estimatedKm ?? 0;
+    const value = lastValidUberCapture.offeredValue ?? 0;
+    const km = lastValidUberCapture.estimatedKm ?? 0;
     if (value <= 0 || km <= 0) {
       showToast("A oferta ainda nao tem dados suficientes");
       return;
@@ -548,11 +551,11 @@ export default function Home() {
       await addRide({
         receitaBruta: +value.toFixed(2),
         kmRodado: +km.toFixed(2),
-        app: sourceToApp(lastCapture.sourceApp),
+        app: sourceToApp(lastValidUberCapture.sourceApp),
         mode: "app",
-        startedAt: lastCapture.capturedAt,
-        endedAt: lastCapture.capturedAt,
-        durationMinutes: Math.round(lastCapture.estimatedMinutes ?? 0),
+        startedAt: lastValidUberCapture.capturedAt,
+        endedAt: lastValidUberCapture.capturedAt,
+        durationMinutes: Math.round(lastValidUberCapture.estimatedMinutes ?? 0),
       });
       setSavedOfferIds((current) => [...current, lastCaptureId]);
       setSavedBanner(
@@ -837,22 +840,22 @@ export default function Home() {
             />
           )}
 
-          {lastCapture && (
+          {lastValidUberCapture && lastCapture && (
             <View
               className="rounded-[24px] border border-slate-200 bg-white p-4"
             >
               <View className="flex-row items-start justify-between">
                 <View className="flex-1 pr-3">
                   <Text className="text-xs font-semibold uppercase tracking-[1.4px] text-slate-400">
-                    Ultima oferta detectada
+                    Ultima oferta valida do Uber/99
                   </Text>
                   <Text className="mt-2 text-2xl font-bold text-slate-900">
-                    {money(lastCapture.offeredValue ?? 0)}
+                    {money(lastValidUberCapture.offeredValue ?? 0)}
                   </Text>
                   <Text className="mt-1 text-sm text-slate-500">
                     {(lastCapture.estimatedKm ?? 0).toFixed(1)} km •{" "}
                     {Math.round(lastCapture.estimatedMinutes ?? 0)} min •{" "}
-                    {sourceToApp(lastCapture.sourceApp)}
+                    {sourceToApp(lastValidUberCapture.sourceApp)}
                   </Text>
                 </View>
 
@@ -891,6 +894,26 @@ export default function Home() {
               </View>
             </View>
           )}
+
+          {latestUberOfferState.status !== "idle" &&
+            latestUberOfferState.status !== "valid" && (
+              <View className="rounded-[24px] border border-amber-200 bg-amber-50 p-4">
+                <Text className="text-xs font-semibold uppercase tracking-[1.4px] text-amber-700">
+                  Estado da ultima oferta Uber/99
+                </Text>
+                <Text className="mt-2 text-lg font-bold text-amber-950">
+                  {latestUberOfferState.status === "detected"
+                    ? "Oferta detectada"
+                    : latestUberOfferState.status === "processing"
+                      ? "Oferta em processamento"
+                      : "Oferta sem captura valida"}
+                </Text>
+                <Text className="mt-2 text-sm text-amber-900">
+                  {latestUberOfferState.parserReason ??
+                    "O radar viu a oferta, mas ainda nao fechou uma captura estruturada."}
+                </Text>
+              </View>
+            )}
 
           {recentDebugReads.length > 0 && (
             <View className="rounded-[24px] border border-slate-200 bg-white p-4">
