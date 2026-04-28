@@ -58,6 +58,15 @@ type TrackState = {
     draft?: DraftRide | DraftFreeTracking;
     endedAt: string;
     durationMinutes: number;
+    source: string;
+    snapshot: {
+      beforeStopDistanceMeters: number;
+      afterStopDistanceMeters: number;
+      finalizedDistanceMeters: number;
+      pointsCount: number;
+      lastPoint?: TrackPoint;
+      draft?: DraftRide | DraftFreeTracking;
+    };
   }>;
   restoreTrackingSession(): Promise<void>;
 };
@@ -254,10 +263,22 @@ export const useTrackingStore = create<TrackState>((set, get) => {
     },
 
     async stop() {
+      const beforeStop = get();
+
       await gps.stop();
       setBackgroundPointHandler(null);
 
-      const { distanceMeters, draft } = get();
+      const afterStop = get();
+      const distanceMeters = Math.max(
+        beforeStop.distanceMeters,
+        afterStop.distanceMeters,
+      );
+      const draft = afterStop.draft ?? beforeStop.draft;
+      const pointsCount = Math.max(
+        beforeStop.points.length,
+        afterStop.points.length,
+      );
+      const lastPoint = afterStop.lastPoint ?? beforeStop.lastPoint;
       const endedAt = new Date().toISOString();
 
       const durationMinutes = draft?.startedAt
@@ -284,6 +305,15 @@ export const useTrackingStore = create<TrackState>((set, get) => {
         draft,
         endedAt,
         durationMinutes,
+        source: "useTrackingStore.distanceMeters",
+        snapshot: {
+          beforeStopDistanceMeters: beforeStop.distanceMeters,
+          afterStopDistanceMeters: afterStop.distanceMeters,
+          finalizedDistanceMeters: distanceMeters,
+          pointsCount,
+          lastPoint,
+          draft,
+        },
       };
     },
 

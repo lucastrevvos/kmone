@@ -6,6 +6,10 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { TrackingStartError } from "@core/infra/expoGps";
 import { evaluateOffer } from "@features/offerRadar/evaluateOffer";
 import { offerOverlayBridge } from "@features/offerRadar/overlayBridge";
+import {
+  getDistanceValidationMessage,
+  normalizeDistanceKm,
+} from "@utils/distance";
 import { money } from "@utils/format";
 import { evaluateRideRadar } from "@utils/rideRadar";
 import { formatMoneyInputValue, parseSpokenMoney } from "@utils/speechMoney";
@@ -45,6 +49,7 @@ const ACCENT = "#10B981";
 const ACCENT_DARK = "#065F46";
 const SURFACE = "#F8FAFC";
 const SHOW_HOME_RADAR_DEBUG = false;
+const SHOW_TRACKING_STOP_DEBUG = __DEV__;
 type VoiceTarget = "manualBruto";
 type RadarSource = "Uber" | "99" | "Outros";
 type RadarSnapshot = {
@@ -262,6 +267,11 @@ export default function Home() {
     }
   }
 
+  function logTrackingStopDebug(payload: Record<string, unknown>) {
+    if (!SHOW_TRACKING_STOP_DEBUG) return;
+    console.log("[tracking.stop.debug]", payload);
+  }
+
   function applyVoiceValue(target: VoiceTarget, value: string) {
     setManualBruto(value);
   }
@@ -373,12 +383,45 @@ export default function Home() {
     }
 
     try {
-      const { distanceMeters: dist, draft, endedAt, durationMinutes } =
-        await stop();
+      const {
+        distanceMeters: dist,
+        draft,
+        endedAt,
+        durationMinutes,
+        source,
+        snapshot,
+      } = await stop();
 
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-      const kmNum = +(dist / 1000).toFixed(2);
+      const normalizedTrackedKm = normalizeDistanceKm(
+        dist / 1000,
+        `${source}.stopResult`,
+      );
+
+      logTrackingStopDebug({
+        rawDistanceMeters: dist,
+        rawDistanceMetersType: typeof dist,
+        rawKmValue: dist / 1000,
+        rawKmValueType: typeof (dist / 1000),
+        parsedKm: normalizedTrackedKm.normalizedKm,
+        parsedKmType: typeof normalizedTrackedKm.normalizedKm,
+        normalizedSource: normalizedTrackedKm.source,
+        draftKind: draft?.kind ?? null,
+        stateUsedToFinish: snapshot,
+      });
+
+      if (
+        !normalizedTrackedKm.normalizedKm ||
+        normalizedTrackedKm.normalizedKm <= 0
+      ) {
+        const message = `${getDistanceValidationMessage(normalizedTrackedKm)} Verifique se o GPS estava ativo ou informe o km manualmente.`;
+        setTrackingError(message);
+        showToast(message);
+        return;
+      }
+
+      const kmNum = +normalizedTrackedKm.normalizedKm.toFixed(2);
 
       if (draft?.kind === "free") {
         const receitaParticular =
@@ -416,7 +459,12 @@ export default function Home() {
       }
     } catch (error) {
       console.error("stop tracking:", error);
-      showToast("Nao foi possivel encerrar o tracking livre");
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Nao foi possivel encerrar o tracking livre";
+      setTrackingError(message);
+      showToast(message);
     }
   }
 

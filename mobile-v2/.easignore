@@ -15,9 +15,23 @@ android/app/.cxx/
 android/.kotlin/
 .gradle/
 
+# Extra Android generated folders
+android/**/build/
+android/**/.gradle/
+android/**/.kotlin/
+android/**/.cxx/
+android/**/outputs/
+android/**/intermediates/
+android/**/tmp/
+
 # Gradle lock/cache files
 android/.gradle/**/*.lock
 .gradle/**/*.lock
+
+# Build outputs
+*.apk
+*.aab
+*.apks
 
 # Logs
 *.log
@@ -39,11 +53,6 @@ Thumbs.db
 .vscode/
 .idea/
 
-# EAS/local build outputs
-*.apk
-*.aab
-*.apks
-
-# Temporary files
+# Temp
 tmp/
 temp/
