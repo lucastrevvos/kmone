@@ -65,7 +65,15 @@ export function Layout() {
           <p className="text-sm leading-6">
             © {new Date().getFullYear()} KM One • Todos os direitos reservados
             <br />
-            Um app do ecossistema TREVVOS
+            Um app do ecossistema{" "}
+            <a
+              href="https://www.trevvos.com.br"
+              target="_blank"
+              rel="noreferrer"
+              className="font-bold text-white transition hover:text-[var(--green-main)]"
+            >
+              TREVVOS
+            </a>
           </p>
           <nav className="flex flex-col justify-center gap-4 text-sm md:flex-row">
             <button

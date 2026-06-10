@@ -21,32 +21,32 @@ import driverApp from "../assets/appcelulardriver.png";
 import promotionalImage from "../assets/promocional.png";
 
 const metrics = [
-  { value: "R$/km", label: "Decisão antes de aceitar a corrida" },
-  { value: "Meta", label: "Progresso diário sempre visível" },
-  { value: "Uber + 99", label: "Registro por aplicativo em um só lugar" },
+  { value: "Boa", label: "Oferta dentro dos seus parâmetros" },
+  { value: "Atenção", label: "Corrida que exige análise antes de aceitar" },
+  { value: "Ruim", label: "Alerta para proteger seu ganho por km" },
 ];
 
 const pains = [
-  "A oferta parece boa, mas você não sabe o ganho real por quilômetro.",
+  "A oferta aparece rápido e você precisa decidir antes de fazer a conta na cabeça.",
   "A gasolina e os custos somem no meio da rotina.",
-  "A meta do dia fica no improviso, sem clareza do que falta bater.",
+  "Sem parâmetros claros, uma corrida com valor alto pode derrubar seu ganho por km.",
 ];
 
 const features = [
   {
     icon: Radar,
-    title: "Análise de ofertas",
-    text: "Use o radar de ofertas da Uber e 99 para comparar valor, distância e R$/km antes de rodar.",
+    title: "Classificação de ofertas",
+    text: "Assim que a corrida é identificada, o KM One mostra se ela é boa, ruim ou vale atenção.",
   },
   {
     icon: Target,
-    title: "Meta diária",
-    text: "Acompanhe quanto falta para fechar o dia e ajuste sua jornada com clareza.",
+    title: "Parâmetros do motorista",
+    text: "A análise considera as regras que você definiu para ganho mínimo, distância e objetivo do dia.",
   },
   {
     icon: Route,
-    title: "Registro de corridas",
-    text: "Organize ganhos da Uber, 99 e outros apps com histórico simples de consultar.",
+    title: "Registro manual",
+    text: "Cadastre uma corrida manualmente quando uma oferta passar despercebida ou precisar de ajuste.",
   },
   {
     icon: Fuel,
@@ -61,25 +61,25 @@ const features = [
   {
     icon: MapPinned,
     title: "Tracking em tempo real",
-    text: "Acompanhe rotas, quilometragem e produtividade com leitura em tempo real dentro da operação.",
+    text: "Contabilize deslocamentos sem passageiro e registre corridas particulares ao finalizar.",
   },
 ];
 
 const steps = [
   {
     icon: Smartphone,
-    title: "Cadastre a corrida",
-    text: "Informe valor, app e quilometragem em poucos toques.",
+    title: "A corrida é identificada",
+    text: "O KM One lê a oportunidade e prepara os dados relevantes para a decisão.",
   },
   {
     icon: Gauge,
-    title: "Leia o R$/km",
-    text: "O KM One transforma os dados em um indicador fácil de entender.",
+    title: "Compare com seus parâmetros",
+    text: "O app cruza valor, distância, R$/km e suas regras para classificar a oferta.",
   },
   {
     icon: WalletCards,
-    title: "Feche a conta",
-    text: "Acompanhe meta, abastecimentos e saldo da sua operação diária.",
+    title: "Aceite com mais clareza",
+    text: "Você decide com um sinal direto: boa, ruim ou atenção, sem depender de achismo.",
   },
 ];
 
@@ -108,9 +108,10 @@ export function Home() {
           </h1>
 
           <p className="mt-6 text-pretty text-lg leading-8 text-[var(--text-muted)] sm:text-xl">
-            O KM One ajuda você a analisar ofertas da Uber e 99, calcular ganho
-            por quilômetro, acompanhar a meta diária, usar tracking em tempo
-            real e registrar corridas, abastecimentos e custos da sua operação.
+            O KM One identifica ofertas da Uber e 99 e mostra, com base nos
+            seus parâmetros, se a corrida é boa, ruim ou vale atenção. Você
+            decide melhor antes de aceitar e ainda acompanha meta, tracking,
+            corridas particulares, abastecimentos e custos da operação.
           </p>
 
           <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center lg:justify-start">
@@ -150,7 +151,7 @@ export function Home() {
                 <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--text-muted)]">
                   R$/km ideal
                 </p>
-                <p className="text-2xl font-black text-white">43.09</p>
+                <p className="text-2xl font-black text-white">1.80</p>
               </div>
             </div>
           </div>
@@ -194,7 +195,7 @@ export function Home() {
             Controle financeiro na rotina real
           </p>
           <h2 className="mt-4 text-3xl font-black text-white sm:text-5xl">
-            Decida melhor cada corrida e saiba quanto realmente sobrou.
+            Saiba antes de aceitar se a corrida faz sentido para o seu bolso.
           </h2>
         </div>
 
@@ -231,9 +232,9 @@ export function Home() {
             Radar, tracking e resultado financeiro no mesmo painel.
           </h2>
           <p className="mt-5 text-lg leading-8 text-[var(--text-muted)]">
-            O KM One foi pensado para o motorista enxergar a operação como um
-            negócio: oportunidades próximas, R$/km médio, lucro líquido,
-            progresso da meta e deslocamentos em tempo real.
+            O KM One foi pensado para transformar ofertas rápidas em decisões
+            claras e registrar o que acontece fora dos apps: deslocamentos sem
+            passageiro, corridas particulares e valores recebidos no fechamento.
           </p>
           <div className="mt-7 grid gap-3 sm:grid-cols-2">
             <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
@@ -241,8 +242,8 @@ export function Home() {
                 Menos achismo
               </strong>
               <span className="mt-1 block leading-6 text-[var(--text-muted)]">
-                Indicadores claros para decidir quando aceitar, pausar ou
-                seguir rodando.
+                Sinais objetivos para saber quando aceitar, recusar ou olhar a
+                oferta com mais cuidado.
               </span>
             </div>
             <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-4">
@@ -250,8 +251,8 @@ export function Home() {
                 Mais controle
               </strong>
               <span className="mt-1 block leading-6 text-[var(--text-muted)]">
-                Acompanhe o dinheiro, os quilômetros e o avanço do dia em uma
-                leitura única.
+                Ao finalizar uma corrida particular, adicione o valor recebido
+                e envie tudo para seu controle de orçamento.
               </span>
             </div>
           </div>
@@ -284,7 +285,7 @@ export function Home() {
             Como funciona
           </p>
           <h2 className="mt-4 text-3xl font-black text-white sm:text-5xl">
-            Uma leitura simples para uma operação que exige conta certa.
+            Uma leitura simples para decidir antes de aceitar.
           </h2>
           <div className="mt-8 grid gap-4">
             {steps.map((step) => {
