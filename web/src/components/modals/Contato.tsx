@@ -1,6 +1,6 @@
 export function Contato() {
   return (
-    <div className="p-4 space-y-4 text-left text-sm max-h-[70vh] overflow-y-auto">
+    <div className="space-y-4 text-left text-sm">
       <h2 className="text-2xl font-bold mb-4">Contato</h2>
 
       <p>
@@ -18,12 +18,12 @@ export function Contato() {
         <span className="underline">+55 (11) 94504-3408</span>
       </p>
 
-      <p className="text-xs text-gray-500 mt-6">
+      <p className="mt-6 text-xs text-[var(--text-muted)]">
         Horário de atendimento: segunda a sexta, das 9h às 18h (horário de
         Brasília).
       </p>
 
-      <p className="text-xs text-gray-500">
+      <p className="text-xs text-[var(--text-muted)]">
         Última atualização: {new Date().toLocaleDateString("pt-BR")}
       </p>
     </div>

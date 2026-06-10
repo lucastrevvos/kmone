@@ -1,12 +1,12 @@
+import { useState, type ReactNode } from "react";
 import { Outlet } from "react-router";
 
 import logo from "../assets/kmone.png";
-import { useState, type ReactNode } from "react";
-import { PoliticaPrivacidade } from "./modals/PoliticaPrivacidade";
-import { Modal } from "./modals/Modal";
-import { TermosUso } from "./modals/TermoDeUso";
-import { InformacoesLegais } from "./modals/InformacoesLegais";
 import { Contato } from "./modals/Contato";
+import { InformacoesLegais } from "./modals/InformacoesLegais";
+import { Modal } from "./modals/Modal";
+import { PoliticaPrivacidade } from "./modals/PoliticaPrivacidade";
+import { TermosUso } from "./modals/TermoDeUso";
 
 export function Layout() {
   const [modalContent, setModalContent] = useState<ReactNode>(null);
@@ -31,47 +31,61 @@ export function Layout() {
   }
 
   return (
-    <div className="w-screen min-h-screen bg-[var(--color-bg)] flex flex-col items-center text-[var(--color-default)]">
-      <header className="w-full max-w-screen-lg px-4 py-6 flex items-center gap-3">
-        <img src={logo} alt="KM One logo" className="w-25  h-20" />
+    <div className="min-h-screen w-full overflow-x-hidden bg-[var(--bg-main)] text-[var(--text-main)]">
+      <header className="sticky top-0 z-40 w-full border-b border-white/8 bg-[#020B0F]/82 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-4 sm:px-6 lg:px-8">
+          <a href="/" className="flex items-center gap-3">
+            <img src={logo} alt="KM One logo" className="h-14 w-auto" />
 
-        <div className="flex flex-col leading-tight">
-          <span className="text-xl font-bold tracking-wide">KM ONE</span>
-          <span className="text-sm text-gray-500">
-            Trevvos · Com você a cada KM
-          </span>
+            <div className="flex flex-col leading-tight">
+              <span className="text-lg font-black tracking-wide text-white">
+                KM ONE
+              </span>
+              <span className="text-xs font-semibold text-[var(--text-muted)] sm:text-sm">
+                Trevvos · Com você a cada KM
+              </span>
+            </div>
+          </a>
+
+          <a
+            href="#lista-vip"
+            className="hidden rounded-full border border-[var(--border-soft)] bg-[var(--green-main)]/10 px-5 py-3 text-sm font-black text-[var(--green-main)] transition hover:bg-[var(--green-main)] hover:text-[#02100A] sm:inline-flex"
+          >
+            Lista VIP
+          </a>
         </div>
       </header>
 
-      <main className="w-full max-w-screen-lg px-4 flex-1">
+      <main className="w-full">
         <Outlet />
       </main>
-      <footer className="w-full bg-gray-900 py-8 text-gray-300">
-        <div className="max-w-screen-lg mx-auto px-4 text-center space-y-4">
-          <p className="text-sm">
+
+      <footer className="w-full border-t border-white/10 bg-[#02080B] py-10 text-[var(--text-muted)]">
+        <div className="mx-auto max-w-7xl space-y-5 px-4 text-center sm:px-6 lg:px-8">
+          <p className="text-sm leading-6">
             © {new Date().getFullYear()} KM One • Todos os direitos reservados
             <br />
             Um app do ecossistema TREVVOS
           </p>
-          <nav className="flex flex-col md:flex-row gap-4 justify-center text-sm">
+          <nav className="flex flex-col justify-center gap-4 text-sm md:flex-row">
             <button
               type="button"
               onClick={() => openModal("politica")}
-              className="hover:underline cursor-pointer"
+              className="cursor-pointer transition hover:text-[var(--green-main)]"
             >
-              Politica de Privacidade
+              Política de Privacidade
             </button>
             <button
               type="button"
               onClick={() => openModal("termos")}
-              className="hover:underline cursor-pointer"
+              className="cursor-pointer transition hover:text-[var(--green-main)]"
             >
               Termos de Uso
             </button>
             <button
               type="button"
               onClick={() => openModal("informacoeslegais")}
-              className="hover:underline cursor-pointer"
+              className="cursor-pointer transition hover:text-[var(--green-main)]"
             >
               Informações Legais
             </button>
@@ -79,7 +93,7 @@ export function Layout() {
             <button
               type="button"
               onClick={() => openModal("contato")}
-              className="hover:underline cursor-pointer"
+              className="cursor-pointer transition hover:text-[var(--green-main)]"
             >
               Contato
             </button>

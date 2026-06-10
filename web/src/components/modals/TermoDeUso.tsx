@@ -1,6 +1,6 @@
 export function TermosUso() {
   return (
-    <div className="p-4 space-y-4 text-left text-sm max-h-[70vh] overflow-y-auto">
+    <div className="space-y-4 text-left text-sm">
       <h2 className="text-2xl font-bold mb-4">Termos de Uso</h2>
 
       <p>
@@ -55,7 +55,7 @@ export function TermosUso() {
         <span className="underline">contato@trevvos.com.br</span>.
       </p>
 
-      <p className="text-xs text-gray-500 mt-6">
+      <p className="mt-6 text-xs text-[var(--text-muted)]">
         Última atualização: {new Date().toLocaleDateString("pt-BR")}
       </p>
     </div>

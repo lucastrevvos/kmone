@@ -1,8 +1,57 @@
 @import "tailwindcss";
 
 @theme {
-  --color-bg: #edf6fa;
-  --primary: #16a34a;
-  --color-default: #103559;
-  --secundary: #ffc038;
+  --color-bg: #020b0f;
+  --primary: #20f27a;
+  --color-default: #ffffff;
+  --secundary: #06151c;
+}
+
+:root {
+  --bg-main: #020b0f;
+  --bg-section: #06151c;
+  --bg-card: #0b1a24;
+  --green-main: #20f27a;
+  --green-soft: #00c46a;
+  --green-dark: #063b2b;
+  --blue-soft: #4a90e2;
+  --yellow-soft: #f5c84c;
+  --red-soft: #ff4e5b;
+  --text-main: #ffffff;
+  --text-muted: #aeb8c2;
+  --border-soft: rgba(32, 242, 122, 0.22);
+  color: var(--text-main);
+  background: var(--bg-main);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html {
+  scroll-behavior: smooth;
+  background: var(--bg-main);
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+  background:
+    radial-gradient(circle at 50% -20%, rgba(32, 242, 122, 0.14), transparent 34rem),
+    var(--bg-main);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+::selection {
+  background: rgba(32, 242, 122, 0.28);
+  color: #ffffff;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
 }
