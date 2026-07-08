@@ -25,8 +25,8 @@ jobs:
           mkdir -p ~/.ssh
           echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/vps_key
           chmod 600 ~/.ssh/vps_key
-          ssh-keyscan -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts
+          ssh-keyscan -T 20 -p "${{ secrets.VPS_PORT || 22 }}" -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts
 
       - name: Deploy on VPS
         run: |
-          ssh -i ~/.ssh/vps_key "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "cd /opt/kmone && git pull --ff-only origin main && cd /opt/portaltrevvos && ./deploy/vps/deploy-fronts.sh"
+          ssh -p "${{ secrets.VPS_PORT || 22 }}" -i ~/.ssh/vps_key "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "cd /opt/kmone && git pull --ff-only origin main && cd /opt/portaltrevvos && ./deploy/vps/deploy-fronts.sh"
