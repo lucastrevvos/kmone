@@ -1,0 +1,32 @@
+name: Deploy KM One to VPS
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "web/**"
+      - ".github/workflows/deploy-kmone-vps.yml"
+
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-kmone-vps
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy KM One
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Configure SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/vps_key
+          chmod 600 ~/.ssh/vps_key
+          ssh-keyscan -H "${{ secrets.VPS_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Deploy on VPS
+        run: |
+          ssh -i ~/.ssh/vps_key "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" "cd /opt/kmone && git pull --ff-only origin main && cd /opt/portaltrevvos && ./deploy/vps/deploy-fronts.sh"
