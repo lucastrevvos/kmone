@@ -1,5 +1,7 @@
 # KM One
 
+> **Architecture note (2026):** this repository documents the original KM One implementation and remains useful as product and engineering history. The current Trevvos platform consolidation is moving shared web/backend capabilities to **.NET, Angular, PostgreSQL and Azure** in [trevvos-platform](https://github.com/lucastrevvos/trevvos-platform). The official Android product evolves separately from that backend consolidation.
+
 Copiloto financeiro para motoristas de aplicativo acompanharem corridas, custos, metas e qualidade das ofertas em uma rotina de trabalho mais inteligente.
 
 ## Visão geral
